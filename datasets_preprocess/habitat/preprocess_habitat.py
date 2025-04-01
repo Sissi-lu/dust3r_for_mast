@@ -10,7 +10,6 @@
 # export PYTHONPATH=$(pwd)
 # python preprocess_habitat.py --scenes_dir=$SCENES_DIR --metadata_dir=$METADATA_DIR --output_dir=$OUTPUT_DIR | parallel -j 16
 # --------------------------------------------------------
-import os
 import glob
 import json
 import os
