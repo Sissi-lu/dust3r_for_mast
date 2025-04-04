@@ -326,7 +326,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
     # Fine-tune second decoder blocks and heads
     for param in base_model.dec_blocks2.parameters():
-        param.requires_grad = True
+        param.requires_grad = False
     for param in base_model.downstream_head1.parameters():
         param.requires_grad = True
     for param in base_model.downstream_head2.parameters():
