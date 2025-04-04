@@ -41,7 +41,7 @@ class Abs(BaseStereoViewDataset):
         return depth_map
 
     def _get_views(self, idx, resolution, rng):
-        pair_dir = self.pairs[idx]
+        pair_dir = self.pairs[idx][0]
         views = []
 
         parameter_path = os.path.join(pair_dir, 'calib.json')
