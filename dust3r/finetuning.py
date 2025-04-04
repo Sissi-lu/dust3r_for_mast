@@ -309,6 +309,29 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     log_writer=None):
     assert torch.backends.cuda.matmul.allow_tf32 == True
 
+    # Access the base model (works for both single GPU and DDP)
+    base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+
+    # Freeze encoder
+    for param in base_model.patch_embed.parameters():
+        param.requires_grad = False
+    for param in base_model.enc_blocks.parameters():
+        param.requires_grad = False
+    for param in base_model.enc_norm.parameters():
+        param.requires_grad = False
+
+    # Freeze first set of decoder blocks (optional: unfreeze later if needed)
+    for param in base_model.dec_blocks.parameters():
+        param.requires_grad = False
+
+    # Fine-tune second decoder blocks and heads
+    for param in base_model.dec_blocks2.parameters():
+        param.requires_grad = True
+    for param in base_model.downstream_head1.parameters():
+        param.requires_grad = True
+    for param in base_model.downstream_head2.parameters():
+        param.requires_grad = True
+
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr', misc.SmoothedValue(window_size=1, fmt='{value:.6f}'))
