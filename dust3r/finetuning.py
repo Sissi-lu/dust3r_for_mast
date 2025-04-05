@@ -137,8 +137,8 @@ def finetune(args):
     test_running_list = folds[fold_idx][1]
 
     # if train in the 64 server
-    # train_running_list = [f.replace("data_new", "data") for f in train_running_list]
-    # test_running_list = [f.replace("data_new", "data") for f in test_running_list]
+    train_running_list = [f.replace("data_new", "data") for f in train_running_list]
+    test_running_list = [f.replace("data_new", "data") for f in test_running_list]
 
     train_dataset_str = build_dataset_str(args.train_dataset, train_running_list)
     test_dataset_str = build_dataset_str(args.test_dataset, test_running_list)
@@ -312,25 +312,56 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     # Access the base model (works for both single GPU and DDP)
     base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
 
-    # Freeze encoder
-    for param in base_model.patch_embed.parameters():
-        param.requires_grad = False
-    for param in base_model.enc_blocks.parameters():
-        param.requires_grad = False
-    for param in base_model.enc_norm.parameters():
-        param.requires_grad = False
+    # # Freeze encoder
+    # for param in base_model.patch_embed.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.enc_blocks.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.enc_norm.parameters():
+    #     param.requires_grad = False
+    #
+    # # Freeze first set of decoder blocks (optional: unfreeze later if needed)
+    # for param in base_model.dec_blocks.parameters():
+    #     param.requires_grad = False
+    #
+    # # Fine-tune second decoder blocks and heads
+    # for param in base_model.dec_blocks2.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.downstream_head1.parameters():
+    #     param.requires_grad = True
+    # for param in base_model.downstream_head2.parameters():
+    #     param.requires_grad = True
 
-    # Freeze first set of decoder blocks (optional: unfreeze later if needed)
-    for param in base_model.dec_blocks.parameters():
-        param.requires_grad = False
+    def freeze_model(model):
+        for param in model.parameters():
+            param.requires_grad = False
 
-    # Fine-tune second decoder blocks and heads
-    for param in base_model.dec_blocks2.parameters():
-        param.requires_grad = False
-    for param in base_model.downstream_head1.parameters():
-        param.requires_grad = True
-    for param in base_model.downstream_head2.parameters():
-        param.requires_grad = True
+    def unfreeze_layers(model):
+        # Unfreeze downstream heads
+        for param in model.downstream_head1.parameters():
+            param.requires_grad = True
+        for param in model.downstream_head2.parameters():
+            param.requires_grad = True
+
+        # Unfreeze decoder_embed
+        for param in model.decoder_embed.parameters():
+            param.requires_grad = True
+
+        # Unfreeze last 6 decoder blocks
+        for block in model.dec_blocks[6:]:
+            for param in block.parameters():
+                param.requires_grad = True
+        for block in model.dec_blocks2[6:]:
+            for param in block.parameters():
+                param.requires_grad = True
+
+    # Apply to the model
+    freeze_model(base_model)  # Freeze everything first
+    unfreeze_layers(base_model)  # Unfreeze selected layers
+
+    # Verify
+    for name, param in model.named_parameters():
+        print(f"{name}: requires_grad = {param.requires_grad}")
 
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
