@@ -137,8 +137,8 @@ def finetune(args):
     test_running_list = folds[fold_idx][1]
 
     # if train in the 64 server
-    train_running_list = [f.replace("data_new", "data") for f in train_running_list]
-    test_running_list = [f.replace("data_new", "data") for f in test_running_list]
+    # train_running_list = [f.replace("data_new", "data") for f in train_running_list]
+    # test_running_list = [f.replace("data_new", "data") for f in test_running_list]
 
     train_dataset_str = build_dataset_str(args.train_dataset, train_running_list)
     test_dataset_str = build_dataset_str(args.test_dataset, test_running_list)
