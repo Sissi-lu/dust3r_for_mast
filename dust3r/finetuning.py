@@ -139,7 +139,7 @@ def finetune(args):
 
     # if train in the 64 server
     # train_running_list = [f.replace("data_new", "data") for f in train_running_list]
-    # test_running_list = [f.replace("data_new", "data") for f in test_running_list]
+    #     # test_running_list = [f.replace("data_new", "data") for f in test_running_list]
 
     train_dataset_str = build_dataset_str(args.train_dataset, train_running_list)
     test_dataset_str = build_dataset_str(args.test_dataset, test_running_list)
@@ -345,16 +345,16 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             param.requires_grad = True
 
         # Unfreeze decoder_embed
-        for param in model.decoder_embed.parameters():
-            param.requires_grad = True
-
-        # Unfreeze last 6 decoder blocks
-        for block in model.dec_blocks[6:]:
-            for param in block.parameters():
-                param.requires_grad = True
-        for block in model.dec_blocks2[6:]:
-            for param in block.parameters():
-                param.requires_grad = True
+        # for param in model.decoder_embed.parameters():
+        #     param.requires_grad = True
+        #
+        # # Unfreeze last 6 decoder blocks
+        # for block in model.dec_blocks[6:]:
+        #     for param in block.parameters():
+        #         param.requires_grad = True
+        # for block in model.dec_blocks2[6:]:
+        #     for param in block.parameters():
+        #         param.requires_grad = True
 
     # Apply to the model
     freeze_model(base_model)  # Freeze everything first
