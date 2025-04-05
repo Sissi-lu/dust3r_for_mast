@@ -32,8 +32,8 @@ from mast3r.losses import ConfMatchingLoss, MatchingLoss, APLoss, Regr3D, InfoNC
 from mast3r.datasets import ARKitScenes, BlendedMVS, Co3d, MegaDepth, ScanNetpp, StaticThings3D, Waymo, WildRGBD
 
 from dust3r.datasets import get_data_loader  # noqa
-from dust3r.losses import *  # noqa: F401, needed when loading the model
-from dust3r.inference import loss_of_one_batch  # noqa
+# from dust3r.losses import *  # noqa: F401, needed when loading the model
+# from dust3r.inference import loss_of_one_batch  # noqa
 
 import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
