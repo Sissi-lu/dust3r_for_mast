@@ -90,12 +90,36 @@ def get_args_parser():
     return parser
 
 
-def build_dataset_str(data_str, running_list):
+def build_dataset_str_single(data_str, running_list):
     split_strings = data_str.split('resolution')
     new_data_str = split_strings[0] + 'running_list=%s, resolution'%(running_list) + split_strings[1]
 
     print("rebuild dataset strings:%s"%new_data_str)
     return new_data_str
+
+def build_dataset_str_multiple(data_str, train=True):
+    split_strings = data_str.split('+')
+    train_new_str = ""
+    for split_string in split_strings:
+        data_root = split_string.split('ROOT=')[-1].split(',')[0]
+        data_root = data_root.strip("'")
+        assert os.path.exists(os.path.join(data_root, "list_data.json")), "the train and test splits are missing"
+        with open(os.path.join(data_root, "list_data.json"), "r") as f:
+            folds = json.load(f)
+
+        # Create dataset instances for train and validation
+        fold_idx = 3
+        if train:
+            running_list = folds[fold_idx][0]
+        else:
+            running_list = folds[fold_idx][1]
+        # test_running_list = folds[fold_idx][1]
+
+        train_str_single = build_dataset_str_single(split_string, running_list)
+        # test_str_single = build_dataset_str_single(split_string,)
+        train_new_str = "%s+%s"%(train_new_str, train_str_single)
+    return train_new_str
+
 
 def finetune(args):
     total_train_result = []
@@ -125,31 +149,35 @@ def finetune(args):
 
     cudnn.benchmark = not args.disable_cudnn_benchmark
 
-    data_root = args.train_dataset.split('ROOT=')[-1].split(',')[0]
-    data_root = data_root.strip("'")
-    assert os.path.exists(os.path.join(data_root, "list_data.json")), "the train and test splits are missing"
-
-    with open(os.path.join(data_root, "list_data.json"), "r") as f:
-        folds = json.load(f)
-
-    # Create dataset instances for train and validation
-    fold_idx = 3
-    train_running_list = folds[fold_idx][0]
-    test_running_list = folds[fold_idx][1]
+    # data_root = args.train_dataset.split('ROOT=')[-1].split(',')[0]
+    # data_root = data_root.strip("'")
+    # assert os.path.exists(os.path.join(data_root, "list_data.json")), "the train and test splits are missing"
+    #
+    # with open(os.path.join(data_root, "list_data.json"), "r") as f:
+    #     folds = json.load(f)
+    #
+    # # Create dataset instances for train and validation
+    # fold_idx = 3
+    # train_running_list = folds[fold_idx][0]
+    # test_running_list = folds[fold_idx][1]
 
     # if train in the 64 server
     # train_running_list = [f.replace("data_new", "data") for f in train_running_list]
     #     # test_running_list = [f.replace("data_new", "data") for f in test_running_list]
 
-    train_dataset_str = build_dataset_str(args.train_dataset, train_running_list)
-    test_dataset_str = build_dataset_str(args.test_dataset, test_running_list)
+    train_dataset_str = build_dataset_str_multiple(args.train_dataset)
+    test_dataset_str = build_dataset_str_multiple(args.test_dataset, train=False)
 
     # training dataset and loaderfinetune.py
     print('Building train dataset {:s}'.format(args.train_dataset))
     data_loader_train = get_data_loader(train_dataset_str, args.batch_size, args.num_workers)
-    data_loader_test = {
-        test_dataset_str.split('(')[0]: get_data_loader(test_dataset_str, args.batch_size, args.num_workers)}
-    print('Building test dataset {:s}'.format(args.train_dataset))
+    data_loader_test = {dataset.split('(')[0]:get_data_loader(dataset, args.batch_size, args.num_workers) for dataset in test_dataset_str.split('+') if len(dataset) !=0}
+
+    # data_loader_test = {
+    #     test_dataset_str.split('(')[0]: get_data_loader(test_dataset_str, args.batch_size, args.num_workers)}
+    # data_loader_test = {dataset.split('(')[0]: build_dataset(dataset, args.batch_size, args.num_workers, test=True)
+    #                     for dataset in args.test_dataset.split('+')}
+    print('Building test dataset {:s}'.format(args.test_dataset))
 
     # model
     print('Loading model: {:s}'.format(args.model))
