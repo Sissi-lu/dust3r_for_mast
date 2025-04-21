@@ -106,8 +106,8 @@ class FundusDong(BaseStereoViewDataset):
 
     def _read_depthmap(self, depth_path):
 
-        depth_map = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)  # Loads as uint8 (0-255)
-
+        # depth_map = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)  # Loads as uint8 (0-255)
+        depth_map = np.load(depth_path)
         # # Define clipping planes in meters
         # clip_start = 40  # Near clipping plane (meters)
         # clip_end = 100.0  # Far clipping plane (meters)
@@ -163,7 +163,7 @@ class FundusDong(BaseStereoViewDataset):
             rgb_path = one_side
             rgb_image = imread_cv2(rgb_path)
 
-            depth_path = str(one_side).replace("imgs", "metric_depth")
+            depth_path = str(one_side).replace("imgs", "metric_depth").replace("png", "npy")
             depth_map = self._read_depthmap(depth_path)
 
             # -------use world matrix generated directly from blender----#
