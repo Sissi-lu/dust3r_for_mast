@@ -144,9 +144,9 @@ def finetune(args):
             line = line.strip('\n').split(',')[0]
             train_running_list.append(line)
 
-    with open(os.path.join(data_root, "split", "test.txt")) as file:
+    with open(os.path.join(data_root, "split", "val.txt")) as file:
         for line in file.readlines():
-            line = line.strip('\n')
+            line = line.strip('\n').split(',')[0]
             test_running_list.append(line)
 
     # train_running_list = folds[fold_idx][0]
