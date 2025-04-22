@@ -132,7 +132,6 @@ class FundusDong(BaseStereoViewDataset):
         assert calib[intrinsic_number]['name'] == pairs[0].split('/')[-1].split(',')[0], "calib name is %s and pair name is %s"%(calib[intrinsic_number]['name'], pairs[0].split('/')[-1].split(',')[0])
         calib_org =  calib[intrinsic_number]
 
-        new_calib = dict()
         intrinsic_left, w2cl, intrinsic_right, w2cr, ql, qr, posl, posr = extract_calib(calib_org)
 
         # validation the effectiveness of the quaternion and w2c
