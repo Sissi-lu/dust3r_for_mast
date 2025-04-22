@@ -24,10 +24,10 @@ with open('./remove_img_files.txt', 'r') as f:
         line = line.strip().split('/data_new/luxiaoxi/dataset/medical_depth/final_version_processed/')[1]
         remove_list.append(line)
 
-new_split = os.path.join("/data_new/luxiaoxi/dataset/medical_depth/final_version_processed", "new_split")
+new_split = os.path.join("/data/luxiaoxi/dataset/medical_depth/final_version_processed", "new_split")
 os.makedirs(new_split, exist_ok=True)
 
-split_dir = "/data_new/luxiaoxi/dataset/medical_depth/final_version_processed/split"
+split_dir = "/data/luxiaoxi/dataset/medical_depth/final_version_processed/split"
 new_list = []
 for file in ["train", "test", "val"]:
     with open(os.path.join(split_dir, "%s.txt"%file), 'r') as f:
@@ -43,6 +43,6 @@ for file in ["train", "test", "val"]:
                 new_list.append(line)
 
 
-    with open(os.path.join(split_dir, "%s.txt"%file), 'a') as f:
+    with open(os.path.join(new_split, "%s.txt"%file), 'a') as f:
         for line in new_list:
             f.write("%s\n"%line)

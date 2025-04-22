@@ -129,7 +129,7 @@ class FundusDong(BaseStereoViewDataset):
         with open(parameter_path, "r") as f:
             calib = json.load(f)
 
-        assert calib[intrinsic_number]['name'] == pairs[0].split('/')[-1]
+        assert calib[intrinsic_number]['name'] == pairs[0].split('/')[-1], "calib name is %s and pair name is %s"%(calib[intrinsic_number]['name'], pairs[0].split('/')[-1])
         calib_org =  calib[intrinsic_number]
 
         new_calib = dict()
