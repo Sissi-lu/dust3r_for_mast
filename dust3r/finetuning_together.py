@@ -341,25 +341,25 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     # Access the base model (works for both single GPU and DDP)
     base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
 
-    # Freeze encoder
-    for param in base_model.patch_embed.parameters():
-        param.requires_grad = False
-    for param in base_model.enc_blocks.parameters():
-        param.requires_grad = False
-    for param in base_model.enc_norm.parameters():
-        param.requires_grad = False
-
-    # Freeze first set of decoder blocks (optional: unfreeze later if needed)
-    for param in base_model.dec_blocks.parameters():
-        param.requires_grad = True
-
-    # Fine-tune second decoder blocks and heads
-    for param in base_model.dec_blocks2.parameters():
-        param.requires_grad = True
-    for param in base_model.downstream_head1.parameters():
-        param.requires_grad = True
-    for param in base_model.downstream_head2.parameters():
-        param.requires_grad = True
+    # # Freeze encoder
+    # for param in base_model.patch_embed.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.enc_blocks.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.enc_norm.parameters():
+    #     param.requires_grad = False
+    #
+    # # Freeze first set of decoder blocks (optional: unfreeze later if needed)
+    # for param in base_model.dec_blocks.parameters():
+    #     param.requires_grad = False
+    #
+    # # Fine-tune second decoder blocks and heads
+    # for param in base_model.dec_blocks2.parameters():
+    #     param.requires_grad = False
+    # for param in base_model.downstream_head1.parameters():
+    #     param.requires_grad = True
+    # for param in base_model.downstream_head2.parameters():
+    #     param.requires_grad = True
 
     def freeze_model(model):
         for param in model.parameters():
@@ -384,6 +384,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         #     for param in block.parameters():
         #         param.requires_grad = True
 
+        for param in base_model.dec_blocks.parameters():
+            param.requires_grad = True
     # Apply to the model
     freeze_model(base_model)  # Freeze everything first
     unfreeze_layers(base_model)  # Unfreeze selected layers
