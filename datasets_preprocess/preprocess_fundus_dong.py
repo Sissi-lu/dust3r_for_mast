@@ -19,30 +19,32 @@ import os
 import os
 
 remove_list = []
-with open('./remove_img_files.txt', 'r') as f:
-    for line in f.readlines():
-        line = line.strip().split('/data_new/luxiaoxi/dataset/medical_depth/final_version_processed/')[1]
-        remove_list.append(line)
+# with open('./remove_img_files.txt', 'r') as f:
+#     for line in f.readlines():
+#         line = line.strip().split('/data_new/luxiaoxi/dataset/medical_depth/final_version_processed/')[1]
+#         remove_list.append(line)
 
-new_split = os.path.join("/data/luxiaoxi/dataset/medical_depth/final_version_processed", "new_split")
-os.makedirs(new_split, exist_ok=True)
+# new_split = os.path.join("/data/luxiaoxi/dataset/medical_depth/final_version_processed", "new_split")
+# os.makedirs(new_split, exist_ok=True)
 
 split_dir = "/data/luxiaoxi/dataset/medical_depth/final_version_processed/split"
 new_list = []
+# k=0
 for file in ["train", "test", "val"]:
+    k=0
     with open(os.path.join(split_dir, "%s.txt"%file), 'r') as f:
         for line in f.readlines():
             newline = line.strip().split(',')[0]
-            k = 0
-            for remove in remove_list:
-                if  newline== remove.replace('metric_depth', "imgs").replace("npy", "png").replace("right", "left"):
-                    print(newline)
-                    break
-                k = k+1
-            if k == len(remove_list):
-                new_list.append(line)
+            k = k+1
+            # for remove in remove_list:
+            #     if  newline== remove.replace('metric_depth', "imgs").replace("npy", "png").replace("right", "left"):
+            #         print(newline)
+            #         break
+            #     k = k+1
+            # if k == len(remove_list):
+            #     new_list.append(line)
 
-
-    with open(os.path.join(new_split, "%s.txt"%file), 'a') as f:
-        for line in new_list:
-            f.write("%s\n"%line)
+        print("%s has %d lines" % (file, k))
+    # with open(os.path.join(new_split, "%s.txt"%file), 'a') as f:
+    #     for line in new_list:
+    #         f.write("%s\n"%line)
