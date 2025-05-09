@@ -279,7 +279,7 @@ def finetune(args):
     save_final_model(args, args.epochs, model_without_ddp, best_so_far=best_so_far)
 
     with open(os.path.join(args.output_dir, "train_process.txt"), "a") as f:
-        f.write("folder %d \n" % fold_idx)
+        f.write("folder \n")
         f.write("train_results:\n")
         f.write(str(train_stats))
         f.write("\n")
