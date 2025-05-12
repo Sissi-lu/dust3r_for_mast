@@ -62,7 +62,7 @@ def rescale_image_depthmap(image, depthmap, camera_intrinsics, output_resolution
     output_resolution = np.array(output_resolution)
     if depthmap is not None:
         # can also use this with masks instead of depthmaps
-        assert tuple(depthmap.shape[:2]) == image.size[::-1], "depth map: %s, image size: %s" % (depthmap.shape[2], image.size[::-1])
+        assert tuple(depthmap.shape[:2]) == image.size[::-1], "depth map: %s, image size: %s" % (depthmap.shape[:2], image.size[::-1])
 
     # define output resolution
     assert output_resolution.shape == (2,)
