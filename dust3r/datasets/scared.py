@@ -13,6 +13,8 @@ from collections import deque
 
 import cv2
 import numpy as np
+
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -21,20 +23,24 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
 
-class Co3d(BaseStereoViewDataset):
+class SCARED(BaseStereoViewDataset):
     def __init__(self, mask_bg=True, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
-        self.dataset_label = 'Co3d_v2'
+        self.dataset_label = 'SCARED'
 
         # load all scenes
-        with open(osp.join(self.ROOT, f'selected_seqs_{self.split}.json'), 'r') as f:
-            self.scenes = json.load(f)
-            self.scenes = {k: v for k, v in self.scenes.items() if len(v) > 0}
-            self.scenes = {(k, k2): v2 for k, v in self.scenes.items()
-                           for k2, v2 in v.items()}
+        if self.split == "train":
+            with open(osp.join(self.ROOT, f'train.json'), 'r') as f:
+                self.scenes = json.load(f)
+        elif self.split == "test":
+            with open(osp.join(self.ROOT, f'val.json'), 'r') as f:
+                self.scenes = json.load(f)
+        self.scenes = {k: v for k, v in self.scenes.items() if len(v) > 0}
+        self.scenes = {(k, k2): v2 for k, v in self.scenes.items()
+                       for k2, v2 in v.items()}
         self.scene_list = list(self.scenes.keys())
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
@@ -49,21 +55,22 @@ class Co3d(BaseStereoViewDataset):
         return len(self.scene_list) * len(self.combinations)
 
     def _get_metadatapath(self, obj, instance, view_idx):
-        return osp.join(self.ROOT, obj, instance, 'images', f'frame{view_idx:06n}.npz')
+        return osp.join(self.ROOT, instance, 'image_02/data/frame_data', f'frame_data%06d.json'%view_idx)
 
     def _get_impath(self, obj, instance, view_idx):
-        return osp.join(self.ROOT, obj, instance, 'images', f'frame{view_idx:06n}.jpg')
+        return osp.join(self.ROOT, instance, 'image_02/data', f'%010d.png'%view_idx)
 
     def _get_depthpath(self, obj, instance, view_idx):
-        return osp.join(self.ROOT, obj, instance, 'depths', f'frame{view_idx:06n}.jpg.geometric.png')
+        return osp.join(self.ROOT, instance, 'image_02/data/groundtruth', f'scene_points%06d.tiff'%view_idx)
 
-    def _get_maskpath(self, obj, instance, view_idx):
-        return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
+    # def _get_maskpath(self, obj, instance, view_idx):
+    #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
-    def _read_depthmap(self, depthpath, input_metadata):
-        depthmap = imread_cv2(depthpath, cv2.IMREAD_UNCHANGED)
-        depthmap = (depthmap.astype(np.float32) / 65535) * np.nan_to_num(input_metadata['maximum_depth'])
-        return depthmap
+    def _read_depthmap(self, depthpath, get):
+        depthmap = cv2.imread(depthpath, 3)
+        depth_gt = depthmap[:, :, 0]
+        gt_depth = depth_gt[0:1024, :].astype(np.float32)
+        return gt_depth
 
     def _get_views(self, idx, resolution, rng):
         # choose a scene
@@ -102,22 +109,27 @@ class Co3d(BaseStereoViewDataset):
 
             # load camera params
             metadata_path = self._get_metadatapath(obj, instance, view_idx)
-            input_metadata = np.load(metadata_path)
-            camera_pose = input_metadata['camera_pose'].astype(np.float32)
-            intrinsics = input_metadata['camera_intrinsics'].astype(np.float32)
+
+            with open(metadata_path, "r") as f:
+                input_metadata = json.load(f)
+
+            camera_pose = np.array(input_metadata['camera-pose'], dtype=np.float32)
+            intrinsics = np.array(input_metadata['camera-calibration']['KL'], dtype=np.float32)
+            # distortion = np.array(input_metadata['camera_intrinsics']['DL'], dtype=np.float32)
+
 
             # load image and depth
             rgb_image = imread_cv2(impath)
             depthmap = self._read_depthmap(depthpath, input_metadata)
 
-            if mask_bg:
-                # load object mask
-                maskpath = self._get_maskpath(obj, instance, view_idx)
-                maskmap = imread_cv2(maskpath, cv2.IMREAD_UNCHANGED).astype(np.float32)
-                maskmap = (maskmap / 255.0) > 0.1
-
-                # update the depthmap with mask
-                depthmap *= maskmap
+            # if mask_bg:
+            #     # load object mask
+            #     maskpath = self._get_maskpath(obj, instance, view_idx)
+            #     maskmap = imread_cv2(maskpath, cv2.IMREAD_UNCHANGED).astype(np.float32)
+            #     maskmap = (maskmap / 255.0) > 0.1
+            #
+            #     # update the depthmap with mask
+            #     depthmap *= maskmap
 
             rgb_image, depthmap, intrinsics = self._crop_resize_if_necessary(
                 rgb_image, depthmap, intrinsics, resolution, rng=rng, info=impath)
@@ -146,7 +158,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = Co3d(split='train', ROOT="/data_new/luxiaoxi/dataset/natural_scene/co3d_subset_processed", resolution=224, aug_crop=16)
+    dataset = SCARED(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_depth/SCARED", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
         views = dataset[idx]
