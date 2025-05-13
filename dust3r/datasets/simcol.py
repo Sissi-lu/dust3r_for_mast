@@ -52,7 +52,7 @@ class SyntheticColon(BaseStereoViewDataset):
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
                              for i, j in itertools.combinations(range(1200), 2)
-                             if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0]
+                             if 0 < abs(i - j) <= 10 and abs(i - j) % 5 == 0]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
