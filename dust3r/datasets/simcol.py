@@ -6,6 +6,7 @@
 # dataset at https://github.com/facebookresearch/co3d - Creative Commons Attribution-NonCommercial 4.0 International
 # See datasets_preprocess/preprocess_co3d.py
 # --------------------------------------------------------
+import glob
 import os.path as osp
 import json
 import itertools
@@ -23,24 +24,28 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
 
-class SCARED(BaseStereoViewDataset):
+class SyntheticColon(BaseStereoViewDataset):
     def __init__(self, mask_bg=True, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
-        self.dataset_label = 'SCARED'
+        self.dataset_label = 'SyntheticColon'
 
         # load all scenes
+        scenes = []
         if self.split == "train":
-            with open(osp.join(self.ROOT, f'train.json'), 'r') as f:
-                self.scenes = json.load(f)
+            with open(osp.join(self.ROOT, "misc", f'train_file.txt'), 'r') as f:
+                for line in f.readlines():
+                    scenes.append(line.strip())
         elif self.split == "test":
-            with open(osp.join(self.ROOT, f'val.json'), 'r') as f:
-                self.scenes = json.load(f)
-        self.scenes = {k: v for k, v in self.scenes.items() if len(v) > 0}
-        self.scenes = {(k, k2): v2 for k, v in self.scenes.items()
-                       for k2, v2 in v.items()}
+            with open(osp.join(self.ROOT, "misc", f'test_file.txt'), 'r') as f:
+                for line in f.readlines():
+                    scenes.append(line.strip())
+
+
+        self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "FrameBuffer_*.png"))) for scene in scenes}
+
         self.scene_list = list(self.scenes.keys())
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
@@ -66,12 +71,36 @@ class SCARED(BaseStereoViewDataset):
     # def _get_maskpath(self, obj, instance, view_idx):
     #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
-    def _read_depthmap(self, depthpath, get):
-        depthmap = cv2.imread(depthpath, 3)
-        depth_gt = depthmap[:, :, 0]
-        gt_depth = depth_gt[0:1024, :].astype(np.float32)
-        return gt_depth
+    def _read_depthmap(self, depthpath):
+        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256
+        depthmap = depthmap.astype(np.float32)
+        return depthmap
 
+    def _to_transform_matrix(self, pos, quaternions):
+        x, y, z = pos
+        # 提取四元数
+        qw, qx, qy, qz = quaternions
+
+        # 计算旋转矩阵元素（四元数到3x3旋转矩阵）
+        r11 = 1 - 2 * (qy ** 2 + qz ** 2)
+        r12 = 2 * (qx * qy - qz * qw)
+        r13 = 2 * (qx * qz + qy * qw)
+        r21 = 2 * (qx * qy + qz * qw)
+        r22 = 1 - 2 * (qx ** 2 + qz ** 2)
+        r23 = 2 * (qy * qz - qx * qw)
+        r31 = 2 * (qx * qz - qy * qw)
+        r32 = 2 * (qy * qz + qx * qw)
+        r33 = 1 - 2 * (qx ** 2 + qy ** 2)
+
+        # 构建4x4变换矩阵
+        transform_matrix = np.array([
+            [r11, r12, r13, x],
+            [r21, r22, r23, y],
+            [r31, r32, r33, z],
+            [0, 0, 0, 1]
+        ])
+
+        return transform_matrix
     def _get_views(self, idx, resolution, rng):
         # choose a scene
         obj, instance = self.scene_list[idx // len(self.combinations)]
@@ -102,27 +131,32 @@ class SCARED(BaseStereoViewDataset):
                         im_idx = tentative_im_idx
                         break
 
-            view_idx = image_pool[im_idx]
-
-            impath = self._get_impath(obj, instance, view_idx)
-            depthpath = self._get_depthpath(obj, instance, view_idx)
+            impath = image_pool[im_idx]
+            depthpath = impath.replace("FrameBuffer", "Depth")
+            abs_path = os.path.abspath(os.path.join(impath, "../.."))
 
             # load camera params
-            metadata_path = self._get_metadatapath(obj, instance, view_idx)
+            intrinsics = np.loadtxt(
+                os.path.join(abs_path, "cam.txt"),
+                delimiter=" ",
+                dtype=np.float32,
+                skiprows=0,
+            )
 
-            with open(metadata_path, "r") as f:
-                input_metadata = json.load(f)
+            series_name = impath.split("/")[-2].split("_")[-1]
+            with open(os.path.join(abs_path, "SavedRotationQuaternion_%s.txt" % series_name), "r") as f:
+                quaternions = f.readlines()
+            quat = [np.float32(f) for f in quaternions[im_idx].strip().split()]
+            with open(os.path.join(abs_path, "SavedPosition_%s.txt" % series_name), "r") as f:
+                positions = f.readlines()
+            pos = [np.float32(f) for f in positions[im_idx].strip().split()]
 
-            camera_pose = np.array(input_metadata['camera-pose'], dtype=np.float32)
-            intrinsics = np.array(input_metadata['camera-calibration']['KL'], dtype=np.float32)
-            # distortion = np.array(input_metadata['camera_intrinsics']['DL'], dtype=np.float32)
-
+            intrinsics = np.array(intrinsics).reshape(3,3)
+            camera_pose = self._to_transform_matrix(pos, quat).astype(np.float32)
 
             # load image and depth
             rgb_image = imread_cv2(impath)
-            assert rgb_image is not None, "rgb image could not be read"
-            assert rgb_image.shape[:2] == (1024, 1280), print("%s is with shape of %s" % (impath, rgb_image.shape[:2]))
-            depthmap = self._read_depthmap(depthpath, input_metadata)
+            depthmap = self._read_depthmap(depthpath)
 
             # if mask_bg:
             #     # load object mask
@@ -160,7 +194,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = SCARED(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_depth/SCARED", resolution=224, aug_crop=16)
+    dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
         views = dataset[idx]
