@@ -30,6 +30,8 @@ class SCARED(BaseStereoViewDataset):
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
         self.dataset_label = 'SCARED'
+        self.min_depth = 0.001
+        self.max_depth = 150
 
         # load all scenes
         if self.split == "train":
@@ -70,6 +72,8 @@ class SCARED(BaseStereoViewDataset):
         depthmap = cv2.imread(depthpath, 3)
         depth_gt = depthmap[:, :, 0]
         gt_depth = depth_gt[0:1024, :].astype(np.float32)
+        gt_depth[gt_depth < 0] = 0
+        gt_depth[gt_depth > self.max_depth] = self.max_depth
         return gt_depth
 
     def _get_views(self, idx, resolution, rng):
@@ -165,10 +169,10 @@ if __name__ == "__main__":
     for idx in np.random.permutation(len(dataset)):
         views = dataset[idx]
         assert len(views) == 2
-        print(view_name(views[0]), view_name(views[1]))
+        # print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
-        cam_size = max(auto_cam_size(poses), 0.001)
+        cam_size = max(auto_cam_size(poses), 5)
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
