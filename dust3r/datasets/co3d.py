@@ -101,6 +101,7 @@ class Co3d(BaseStereoViewDataset):
             depthpath = self._get_depthpath(obj, instance, view_idx)
 
             # load camera params
+            # metadata_path: suitcase/50_2928_8645/images/frame000054.npz
             metadata_path = self._get_metadatapath(obj, instance, view_idx)
             input_metadata = np.load(metadata_path)
             camera_pose = input_metadata['camera_pose'].astype(np.float32)

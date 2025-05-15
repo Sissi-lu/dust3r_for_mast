@@ -117,7 +117,7 @@ class SCARED(BaseStereoViewDataset):
             with open(metadata_path, "r") as f:
                 input_metadata = json.load(f)
 
-            camera_pose = np.array(input_metadata['camera-pose'], dtype=np.float32)
+            camera_pose = np.linalg.inv(np.array(input_metadata['camera-pose'], dtype=np.float32))
             intrinsics = np.array(input_metadata['camera-calibration']['KL'], dtype=np.float32)
             # distortion = np.array(input_metadata['camera_intrinsics']['DL'], dtype=np.float32)
 

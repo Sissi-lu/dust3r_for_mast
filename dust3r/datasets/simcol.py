@@ -52,7 +52,7 @@ class SyntheticColon(BaseStereoViewDataset):
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
                              for i, j in itertools.combinations(range(100), 2)
-                             if 0 < abs(i - j) <= 50 and abs(i - j) % 5 == 0]
+                             if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
@@ -72,14 +72,21 @@ class SyntheticColon(BaseStereoViewDataset):
     #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
     def _read_depthmap(self, depthpath):
-        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256
+        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255
         depthmap = depthmap.astype(np.float32)
         return depthmap
 
     def _to_transform_matrix(self, pos, quaternions):
         x, y, z = pos
         # 提取四元数
-        qw, qx, qy, qz = quaternions
+        # qw, qx, qy, qz = quaternions
+        qx, qy, qz, qw = quaternions
+
+        # Normalize quaternion
+        norm = np.sqrt(qw ** 2 + qx ** 2 + qy ** 2 + qz ** 2)
+        if norm == 0:
+            raise ValueError("Quaternion norm is zero.")
+        qw, qx, qy, qz = qw / norm, qx / norm, qy / norm, qz / norm
 
         # 计算旋转矩阵元素（四元数到3x3旋转矩阵）
         r11 = 1 - 2 * (qy ** 2 + qz ** 2)
@@ -153,6 +160,7 @@ class SyntheticColon(BaseStereoViewDataset):
 
             intrinsics = np.array(intrinsics).reshape(3,3)
             camera_pose = self._to_transform_matrix(pos, quat).astype(np.float32)
+            # camera_pose = np.linalg.inv(camera_pose)
 
             # load image and depth
             rgb_image = imread_cv2(impath)
@@ -202,7 +210,7 @@ if __name__ == "__main__":
         print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
-        cam_size = max(auto_cam_size(poses), 0.001)
+        cam_size = max(auto_cam_size(poses), 3)
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
