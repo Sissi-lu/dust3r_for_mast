@@ -11,7 +11,7 @@ import os.path as osp
 import json
 import itertools
 from collections import deque
-
+from scipy.spatial.transform import Rotation as R
 import cv2
 import numpy as np
 
@@ -51,10 +51,13 @@ class SyntheticColon(BaseStereoViewDataset):
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
-                             for i, j in itertools.combinations(range(100), 2)
+                             for i, j in itertools.combinations(range(60), 2)
                              if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
+
+        self.min_depth = 0.001
+        self.max_depth = 20
 
     def __len__(self):
         return len(self.scene_list) * len(self.combinations)
@@ -72,42 +75,12 @@ class SyntheticColon(BaseStereoViewDataset):
     #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
     def _read_depthmap(self, depthpath):
-        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255
+        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256*20 #cm
         depthmap = depthmap.astype(np.float32)
+        depthmap[depthmap < 0] = 0
+        depthmap[depthmap > self.max_depth] = self.max_depth
         return depthmap
 
-    def _to_transform_matrix(self, pos, quaternions):
-        x, y, z = pos
-        # 提取四元数
-        # qw, qx, qy, qz = quaternions
-        qx, qy, qz, qw = quaternions
-
-        # Normalize quaternion
-        norm = np.sqrt(qw ** 2 + qx ** 2 + qy ** 2 + qz ** 2)
-        if norm == 0:
-            raise ValueError("Quaternion norm is zero.")
-        qw, qx, qy, qz = qw / norm, qx / norm, qy / norm, qz / norm
-
-        # 计算旋转矩阵元素（四元数到3x3旋转矩阵）
-        r11 = 1 - 2 * (qy ** 2 + qz ** 2)
-        r12 = 2 * (qx * qy - qz * qw)
-        r13 = 2 * (qx * qz + qy * qw)
-        r21 = 2 * (qx * qy + qz * qw)
-        r22 = 1 - 2 * (qx ** 2 + qz ** 2)
-        r23 = 2 * (qy * qz - qx * qw)
-        r31 = 2 * (qx * qz - qy * qw)
-        r32 = 2 * (qy * qz + qx * qw)
-        r33 = 1 - 2 * (qx ** 2 + qy ** 2)
-
-        # 构建4x4变换矩阵
-        transform_matrix = np.array([
-            [r11, r12, r13, x],
-            [r21, r22, r23, y],
-            [r31, r32, r33, z],
-            [0, 0, 0, 1]
-        ])
-
-        return transform_matrix
     def _get_views(self, idx, resolution, rng):
         # choose a scene
         obj, instance = self.scene_list[idx // len(self.combinations)]
@@ -153,14 +126,22 @@ class SyntheticColon(BaseStereoViewDataset):
             series_name = impath.split("/")[-2].split("_")[-1]
             with open(os.path.join(abs_path, "SavedRotationQuaternion_%s.txt" % series_name), "r") as f:
                 quaternions = f.readlines()
-            quat = [np.float32(f) for f in quaternions[im_idx].strip().split()]
+            quat = np.array([np.float32(f) for f in quaternions[im_idx].strip().split()])
+            r = R.from_quat(quat).as_matrix().astype(np.float32)
+            TM = np.eye(4).astype(np.float32)
+            TM[1, 1] = -1
+
             with open(os.path.join(abs_path, "SavedPosition_%s.txt" % series_name), "r") as f:
                 positions = f.readlines()
-            pos = [np.float32(f) for f in positions[im_idx].strip().split()]
+            pos = np.array([np.float32(f) for f in positions[im_idx].strip().split()])
+
+            P = np.concatenate((r, pos.reshape((3, 1))), 1).astype(np.float32)
+            P = np.concatenate((P, np.array([0.0, 0.0, 0.0, 1.0]).reshape((1, 4))), 0).astype(np.float32)
+            P = TM @ P @ TM
 
             intrinsics = np.array(intrinsics).reshape(3,3)
-            camera_pose = self._to_transform_matrix(pos, quat).astype(np.float32)
-            # camera_pose = np.linalg.inv(camera_pose)
+            camera_pose = P
+            # camera_pose = np.linalg.inv(P)
 
             # load image and depth
             rgb_image = imread_cv2(impath)
@@ -205,12 +186,13 @@ if __name__ == "__main__":
     dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
+    # for idx in range(len(dataset)):
         views = dataset[idx]
         assert len(views) == 2
         print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
-        cam_size = max(auto_cam_size(poses), 3)
+        cam_size = max(auto_cam_size(poses), 1)
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
