@@ -300,9 +300,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     def unfreeze_layers(model):
         # Unfreeze downstream heads
         for param in model.downstream_head1.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         for param in model.downstream_head2.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
 
         # Unfreeze decoder_embed -  -
         for param in model.decoder_embed.parameters():
