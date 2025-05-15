@@ -306,7 +306,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         # Unfreeze decoder_embed -  -
         for param in model.decoder_embed.parameters():
-            param.requires_grad = True
+            param.requires_grad = False
         #
         # # Unfreeze last 6 decoder blocks
         # for block in model.dec_blocks[6:]:
