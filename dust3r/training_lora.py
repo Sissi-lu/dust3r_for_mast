@@ -91,7 +91,7 @@ def get_args_parser():
 
 
 def train(args):
-    mprint(f"Starting train function with args: {args}")
+    print(f"Starting train function with args: {args}")
     print("Calling misc.init_distributed_mode")
     misc.init_distributed_mode(args)
     global_rank = misc.get_rank()
