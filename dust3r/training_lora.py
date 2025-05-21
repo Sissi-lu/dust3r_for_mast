@@ -34,7 +34,7 @@ from dust3r.inference import loss_of_one_batch  # noqa
 import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
 from croco.utils.misc import NativeScalerWithGradNormCount as NativeScaler  # noqa
-import peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model
 
 
 def get_args_parser():
