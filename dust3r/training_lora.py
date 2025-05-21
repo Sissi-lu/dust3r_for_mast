@@ -150,6 +150,34 @@ def train(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
+    lora_config = LoraConfig(
+        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+        r=8,  # Rank of LoRA updates (e.g., 8)
+        lora_alpha=16,  # Scaling factor (e.g., 16)
+        lora_dropout=0.1,  # Dropout for regularization
+        target_modules=[
+            "attn.qkv",  # Encoder and decoder self-attention
+            "attn.proj",
+            "cross_attn.projq",  # Decoder cross-attention
+            "cross_attn.projk",
+            "cross_attn.projv",
+            "cross_attn.proj",
+            "dpt.scratch.refinenet1.out_conv",  # DPT heads
+            "dpt.scratch.refinenet2.out_conv",
+            "dpt.scratch.refinenet3.out_conv",
+            "dpt.scratch.refinenet4.out_conv",
+            "dpt.head.0",
+            "dpt.head.2",
+            "dpt.head.4"
+        ],
+        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    )
+
+    model = get_peft_model(model, lora_config)
+    model.to(device)
+    model.print_trainable_parameters()  # Verify trainable parameters
+
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[args.gpu], find_unused_parameters=True, static_graph=True)
@@ -272,38 +300,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     log_writer=None):
     assert torch.backends.cuda.matmul.allow_tf32 == True
 
-    base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-    print(base_model)
+    # base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
 
-    lora_config = LoraConfig(
-        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
-        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
-        r=8,  # Rank of LoRA updates (e.g., 8)
-        lora_alpha=16,  # Scaling factor (e.g., 16)
-        lora_dropout=0.1,  # Dropout for regularization
-        target_modules=[
-            "attn.qkv",  # Encoder and decoder self-attention
-            "attn.proj",
-            "cross_attn.projq",  # Decoder cross-attention
-            "cross_attn.projk",
-            "cross_attn.projv",
-            "cross_attn.proj",
-            "dpt.scratch.refinenet1.out_conv",  # DPT heads
-            "dpt.scratch.refinenet2.out_conv",
-            "dpt.scratch.refinenet3.out_conv",
-            "dpt.scratch.refinenet4.out_conv",
-            "dpt.head.0",
-            "dpt.head.2",
-            "dpt.head.4"
-        ],
-        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
-    )
-
-    model = get_peft_model(model, lora_config)
-    model.to(device)
-    model.print_trainable_parameters()  # Verify trainable parameters
     # Verify
-
 
     model.train(True)
     metric_logger = misc.MetricLogger(delimiter="  ")
@@ -328,19 +327,21 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         if data_iter_step % accum_iter == 0:
             misc.adjust_learning_rate(optimizer, epoch_f, args)
 
-        loss_tuple = loss_of_one_batch(batch, model, criterion, device,
-                                       symmetrize_batch=True,
-                                       use_amp=bool(args.amp), ret='loss')
-        loss, loss_details = loss_tuple  # criterion returns two values
-        loss_value = float(loss)
+        with torch.cuda.amp.autocast(enabled=bool(args.amp)):
+            loss_tuple = loss_of_one_batch(batch, model, criterion, device,
+                                           symmetrize_batch=True,
+                                           use_amp=False, ret='loss')  # Disable nested AMP
+            loss, loss_details = loss_tuple
+            loss_value = float(loss)
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value), force=True)
             sys.exit(1)
 
         loss /= accum_iter
-        loss_scaler(loss, optimizer, parameters=model.parameters(),
-                    update_grad=(data_iter_step + 1) % accum_iter == 0)
+        # Scale gradients and update
+        grad_norm = loss_scaler(loss, optimizer, parameters=model.parameters(),
+                                update_grad=(data_iter_step + 1) % accum_iter == 0)
         if (data_iter_step + 1) % accum_iter == 0:
             optimizer.zero_grad()
 
@@ -351,6 +352,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         metric_logger.update(epoch=epoch_f)
         metric_logger.update(lr=lr)
         metric_logger.update(loss=loss_value, **loss_details)
+        metric_logger.update(grad_norm=grad_norm)
 
         if (data_iter_step + 1) % accum_iter == 0 and ((data_iter_step + 1) % (accum_iter * args.print_freq)) == 0:
             loss_value_reduce = misc.all_reduce_mean(loss_value)  # MUST BE EXECUTED BY ALL NODES
@@ -363,6 +365,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('train_lr', lr, epoch_1000x)
             log_writer.add_scalar('train_iter', epoch_1000x, epoch_1000x)
+            log_writer.add_scalar('grad_norm', grad_norm, epoch_1000x)
             for name, val in loss_details.items():
                 log_writer.add_scalar('train_' + name, val, epoch_1000x)
 
