@@ -91,38 +91,57 @@ def get_args_parser():
 
 
 def train(args):
+    mprint(f"Starting train function with args: {args}")
+    print("Calling misc.init_distributed_mode")
     misc.init_distributed_mode(args)
     global_rank = misc.get_rank()
     world_size = misc.get_world_size()
+    print(f"Rank {global_rank}: Distributed mode initialized, world_size={world_size}")
 
-    print("output_dir: " + args.output_dir)
+    print(f"Rank {global_rank}: Output dir: {args.output_dir}")
     if args.output_dir:
+        print(f"Rank {global_rank}: Creating output directory {args.output_dir}")
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+        print(f"Rank {global_rank}: Output directory created")
 
     # auto resume
     last_ckpt_fname = os.path.join(args.output_dir, f'checkpoint-last.pth')
     args.resume = last_ckpt_fname if os.path.isfile(last_ckpt_fname) else None
+    print(f"Rank {global_rank}: Resume checkpoint: {args.resume}")
 
-    print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
-    print("{}".format(args).replace(', ', ',\n'))
+    print(f"Rank {global_rank}: Job dir: {os.path.dirname(os.path.realpath(__file__))}")
+    print(f"Rank {global_rank}: Args: {args}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
+    print(f"Rank {global_rank}: Device: {device}")
 
     # fix the seed
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
+    print(f"Rank {global_rank}: Seed set to {seed}")
 
     cudnn.benchmark = not args.disable_cudnn_benchmark
+    print(f"Rank {global_rank}: cudnn.benchmark = {cudnn.benchmark}")
 
     # training dataset and loader
-    print('Building train dataset {:s}'.format(args.train_dataset))
-    #  dataset and loader
+    print(f"Rank {global_rank}: Building train dataset: {args.train_dataset}")
     data_loader_train = build_dataset(args.train_dataset, args.batch_size, args.num_workers, test=False)
-    print('Building test dataset {:s}'.format(args.train_dataset))
+    print(f"Rank {global_rank}: Train dataset loaded, length: {len(data_loader_train)}")
+    print(f"Rank {global_rank}: Building test dataset: {args.test_dataset}")
     data_loader_test = {dataset.split('(')[0]: build_dataset(dataset, args.batch_size, args.num_workers, test=True)
                         for dataset in args.test_dataset.split('+')}
+    print(f"Rank {global_rank}: Test datasets loaded: {list(data_loader_test.keys())}")
+
+
+    # # training dataset and loader
+    # print('Building train dataset {:s}'.format(args.train_dataset))
+    # #  dataset and loader
+    # data_loader_train = build_dataset(args.train_dataset, args.batch_size, args.num_workers, test=False)
+    # print('Building test dataset {:s}'.format(args.train_dataset))
+    # data_loader_test = {dataset.split('(')[0]: build_dataset(dataset, args.batch_size, args.num_workers, test=True)
+    #                     for dataset in args.test_dataset.split('+')}
 
     # model
     print('Loading model: {:s}'.format(args.model))
