@@ -35,7 +35,7 @@ import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
 from croco.utils.misc import NativeScalerWithGradNormCount as NativeScaler  # noqa
 from peft import LoraConfig, get_peft_model
-
+import re
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DUST3R training', add_help=False)
@@ -195,13 +195,36 @@ def train(args):
     #     modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
     # )
 
+
     #----------------LoRA decoder only-------------------#
-    lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        lora_dropout=0.1,
-        target_modules=[
-            "dec_blocks.*.attn.qkv",
+
+    def get_lora_target_modules(model, name_include, verbose=True):
+        """
+        根据正则表达式列表，找到模型中匹配的模块名称
+        model: PyTorch 模型
+        name_include: 正则表达式模式列表
+        返回: 匹配的模块名称列表
+        """
+        target_modules = []
+
+        # 将正则表达式中的 .* 转换为适配模块命名的正则模式
+        # 假设模块名使用 . 分隔，.* 匹配任意字符（包括数字、字母、下划线等）
+        patterns = [re.compile(pattern.replace(".", "\\.").replace("*", ".*")) for pattern in name_include]
+
+        # 遍历模型的所有命名模块
+        for name, module in model.named_modules():
+            # 检查模块名是否匹配任一正则表达式
+            for pattern in patterns:
+                if pattern.fullmatch(name):
+                    target_modules.append(name)
+                    break  # 匹配到一个模式后跳出，避免重复添加
+
+        if verbose:
+            print("target_modules:\n ", target_modules)
+        return target_modules
+
+
+    name_include=["dec_blocks.*.attn.qkv",
             "dec_blocks.*.attn.proj",
             "dec_blocks.*.cross_attn.projq",
             "dec_blocks.*.cross_attn.projk",
@@ -213,9 +236,15 @@ def train(args):
             "dec_blocks2.*.cross_attn.projk",
             "dec_blocks2.*.cross_attn.projv",
             "dec_blocks2.*.cross_attn.proj",
-            "downstream_head1.dpt.*",
-            "downstream_head2.dpt.*"
-        ],
+    ]
+    target_modules = get_lora_target_modules(model, name_include)
+    target_modules.append("downstream_head1.dpt.*")
+    target_modules.append("downstream_head2.dpt.*")
+    lora_config = LoraConfig(
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.1,
+        target_modules=target_modules,
         modules_to_save=["decoder_embed"]
     )
 
