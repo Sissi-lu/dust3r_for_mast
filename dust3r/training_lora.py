@@ -169,28 +169,54 @@ def train(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
+
+    #-----------------LoRA both encoder and decoder-------------------#
+    # lora_config = LoraConfig(
+    #     # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+    #     # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+    #     r=8,  # Rank of LoRA updates (e.g., 8)
+    #     lora_alpha=16,  # Scaling factor (e.g., 16)
+    #     lora_dropout=0.1,  # Dropout for regularization
+    #     target_modules=[
+    #         "attn.qkv",  # Encoder and decoder self-attention
+    #         "attn.proj",
+    #         "cross_attn.projq",  # Decoder cross-attention
+    #         "cross_attn.projk",
+    #         "cross_attn.projv",
+    #         "cross_attn.proj",
+    #         "dpt.scratch.refinenet1.out_conv",  # DPT heads
+    #         "dpt.scratch.refinenet2.out_conv",
+    #         "dpt.scratch.refinenet3.out_conv",
+    #         "dpt.scratch.refinenet4.out_conv",
+    #         "dpt.head.0",
+    #         "dpt.head.2",
+    #         "dpt.head.4"
+    #     ],
+    #     modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    # )
+
+    #----------------LoRA decoder only-------------------#
     lora_config = LoraConfig(
-        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
-        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
-        r=8,  # Rank of LoRA updates (e.g., 8)
-        lora_alpha=16,  # Scaling factor (e.g., 16)
-        lora_dropout=0.1,  # Dropout for regularization
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.1,
         target_modules=[
-            "attn.qkv",  # Encoder and decoder self-attention
-            "attn.proj",
-            "cross_attn.projq",  # Decoder cross-attention
-            "cross_attn.projk",
-            "cross_attn.projv",
-            "cross_attn.proj",
-            "dpt.scratch.refinenet1.out_conv",  # DPT heads
-            "dpt.scratch.refinenet2.out_conv",
-            "dpt.scratch.refinenet3.out_conv",
-            "dpt.scratch.refinenet4.out_conv",
-            "dpt.head.0",
-            "dpt.head.2",
-            "dpt.head.4"
+            "dec_blocks.*.attn.qkv",
+            "dec_blocks.*.attn.proj",
+            "dec_blocks.*.cross_attn.projq",
+            "dec_blocks.*.cross_attn.projk",
+            "dec_blocks.*.cross_attn.projv",
+            "dec_blocks.*.cross_attn.proj",
+            "dec_blocks2.*.attn.qkv",
+            "dec_blocks2.*.attn.proj",
+            "dec_blocks2.*.cross_attn.projq",
+            "dec_blocks2.*.cross_attn.projk",
+            "dec_blocks2.*.cross_attn.projv",
+            "dec_blocks2.*.cross_attn.proj",
+            "downstream_head1.dpt.*",
+            "downstream_head2.dpt.*"
         ],
-        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+        modules_to_save=["decoder_embed"]
     )
 
     model = get_peft_model(model, lora_config)
