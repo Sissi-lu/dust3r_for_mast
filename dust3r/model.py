@@ -17,6 +17,11 @@ from dust3r.patch_embed import get_patch_embed
 import dust3r.utils.path_to_croco  # noqa: F401
 from models.croco import CroCoNet  # noqa
 
+# import sys
+# import os
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# from mast3r.model import AsymmetricMASt3R
+
 inf = float('inf')
 
 hf_version_number = huggingface_hub.__version__
