@@ -171,29 +171,29 @@ def train(args):
 
 
     #-----------------LoRA both encoder and decoder-------------------#
-    lora_config = LoraConfig(
-        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
-        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
-        r=8,  # Rank of LoRA updates (e.g., 8)
-        lora_alpha=16,  # Scaling factor (e.g., 16)
-        lora_dropout=0.1,  # Dropout for regularization
-        target_modules=[
-            "attn.qkv",  # Encoder and decoder self-attention
-            "attn.proj",
-            "cross_attn.projq",  # Decoder cross-attention
-            "cross_attn.projk",
-            "cross_attn.projv",
-            "cross_attn.proj",
-            "dpt.scratch.refinenet1.out_conv",  # DPT heads
-            "dpt.scratch.refinenet2.out_conv",
-            "dpt.scratch.refinenet3.out_conv",
-            "dpt.scratch.refinenet4.out_conv",
-            "dpt.head.0",
-            "dpt.head.2",
-            "dpt.head.4"
-        ],
-        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
-    )
+    # lora_config = LoraConfig(
+    #     # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+    #     # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+    #     r=8,  # Rank of LoRA updates (e.g., 8)
+    #     lora_alpha=16,  # Scaling factor (e.g., 16)
+    #     lora_dropout=0.1,  # Dropout for regularization
+    #     target_modules=[
+    #         "attn.qkv",  # Encoder and decoder self-attention
+    #         "attn.proj",
+    #         "cross_attn.projq",  # Decoder cross-attention
+    #         "cross_attn.projk",
+    #         "cross_attn.projv",
+    #         "cross_attn.proj",
+    #         "dpt.scratch.refinenet1.out_conv",  # DPT heads
+    #         "dpt.scratch.refinenet2.out_conv",
+    #         "dpt.scratch.refinenet3.out_conv",
+    #         "dpt.scratch.refinenet4.out_conv",
+    #         "dpt.head.0",
+    #         "dpt.head.2",
+    #         "dpt.head.4"
+    #     ],
+    #     modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    # )
 
 
     #----------------LoRA decoder only-------------------#
@@ -290,6 +290,50 @@ def train(args):
     #     modules_to_save=["patch_embed.proj"]
     # )
 
+    # ---------encoder lora, decoder, head, embed unfreeze------------#
+    def get_lora_target_modules(model, name_include, verbose=True):
+        """
+        根据正则表达式列表，找到模型中匹配的模块名称
+        model: PyTorch 模型
+        name_include: 正则表达式模式列表
+        返回: 匹配的模块名称列表
+        """
+        target_modules = []
+
+        # 将正则表达式中的 .* 转换为适配模块命名的正则模式
+        # 假设模块名使用 . 分隔，.* 匹配任意字符（包括数字、字母、下划线等）
+        patterns = [re.compile(pattern.replace(".", "\\.").replace("*", ".*")) for pattern in name_include]
+
+        # 遍历模型的所有命名模块
+        for name, module in model.named_modules():
+            # 检查模块名是否匹配任一正则表达式
+            for pattern in patterns:
+                if pattern.fullmatch(name):
+                    target_modules.append(name)
+                    break  # 匹配到一个模式后跳出，避免重复添加
+
+        if verbose:
+            print("target_modules:\n ", target_modules)
+        return target_modules
+
+
+    name_include=[ "enc_blocks.*.mlp",
+    ]
+    target_modules = get_lora_target_modules(model, name_include)
+    lora_config = LoraConfig(
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.1,
+        target_modules=target_modules,
+        modules_to_save=[
+            "patch_embed",
+            "dec_blocks",
+            "dec_blocks2",
+            "decoder_embed",
+            "downstream_head1",
+            "downstream_head2",
+            "patch_embed.proj"]
+    )
 
     model = get_peft_model(model, lora_config)
     model.to(device)
