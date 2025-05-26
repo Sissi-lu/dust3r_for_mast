@@ -321,19 +321,23 @@ def train(args):
                    "enc_blocks.*.mlp.fc2"
     ]
     target_modules = get_lora_target_modules(model, name_include)
+    name_to_train = [
+        "patch_embed",
+        "dec_blocks.*",
+        "dec_blocks2.*",
+        "decoder_embed",
+        "downstream_head1",
+        "downstream_head2",
+    ]
+    train_modules = get_lora_target_modules(model, name_to_train)
     lora_config = LoraConfig(
         r=8,
         lora_alpha=16,
         lora_dropout=0.1,
         target_modules=target_modules,
-        modules_to_save=[
-            "patch_embed",
-            "dec_blocks",
-            "dec_blocks2",
-            "decoder_embed",
-            "downstream_head1",
-            "downstream_head2",
-            "patch_embed.proj"]
+        modules_to_save=train_modules
+    #     modules_to_save=[
+    #         ]
     )
 
     model = get_peft_model(model, lora_config)
