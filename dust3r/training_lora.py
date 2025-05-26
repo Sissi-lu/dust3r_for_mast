@@ -317,7 +317,7 @@ def train(args):
         return target_modules
 
 
-    name_include=[ "enc_blocks.*.mlp",
+    name_include=[ "enc_blocks.*.mlp.linear",
     ]
     target_modules = get_lora_target_modules(model, name_include)
     lora_config = LoraConfig(
