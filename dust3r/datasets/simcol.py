@@ -52,7 +52,7 @@ class SyntheticColon(BaseStereoViewDataset):
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
                              for i, j in itertools.combinations(range(60), 2)
-                             if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
+                             if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0 and abs(i - j) != 0]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
@@ -75,7 +75,7 @@ class SyntheticColon(BaseStereoViewDataset):
     #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
     def _read_depthmap(self, depthpath):
-        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256*20 #cm
+        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256*20#cm
         depthmap = depthmap.astype(np.float32)
         depthmap[depthmap < 0] = 0
         depthmap[depthmap > self.max_depth] = self.max_depth
