@@ -169,6 +169,8 @@ def train(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
+    for name, param in model.named_parameters():
+        print(name)
 
     #-----------------LoRA both encoder and decoder-------------------#
     # lora_config = LoraConfig(
