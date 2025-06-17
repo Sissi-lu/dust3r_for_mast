@@ -146,7 +146,7 @@ class SyntheticColon(BaseStereoViewDataset):
             # load image and depth
             rgb_image = imread_cv2(impath)
             depthmap = self._read_depthmap(depthpath)
-
+            ######## ready to change the
             # if mask_bg:
             #     # load object mask
             #     maskpath = self._get_maskpath(obj, instance, view_idx)
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=224, aug_crop=16)
+    dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
