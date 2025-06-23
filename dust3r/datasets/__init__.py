@@ -18,6 +18,7 @@ from .servct import Servct
 from .fundus_dong import FundusDong
 from .scared import SCARED
 from .simcol import SyntheticColon
+from .c3vd import C3VD
 
 def get_data_loader(dataset, batch_size, num_workers=8, shuffle=True, drop_last=True, pin_mem=True):
     import torch
