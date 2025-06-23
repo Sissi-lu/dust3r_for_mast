@@ -6,16 +6,13 @@
 # dataset at https://github.com/facebookresearch/co3d - Creative Commons Attribution-NonCommercial 4.0 International
 # See datasets_preprocess/preprocess_co3d.py
 # --------------------------------------------------------
-import glob
 import os.path as osp
 import json
 import itertools
 from collections import deque
-from scipy.spatial.transform import Rotation as R
+
 import cv2
 import numpy as np
-
-
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -24,54 +21,49 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
 
-class C3VD(BaseStereoViewDataset):
+class EndoSlam(BaseStereoViewDataset):
     def __init__(self, mask_bg=True, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
-        self.dataset_label = 'C3VD'
+        self.dataset_label = 'EndoSlam'
+
         # load all scenes
-
-
-        scenes = []
-        if self.split == "train":
-            with open(osp.join(self.ROOT, f'train.txt'), 'r') as f:
-                scenes = f.readline().strip().split(' ')
-        elif self.split == "test":
-            with open(osp.join(self.ROOT, f'val.txt'), 'r') as f:
-                scenes = f.readline().strip().split(' ')
-
-
-        # scene has the under_review, which is not included
-        scenes = [f.split('_under')[0] for f in scenes]
-        self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "*_color.png")), key=lambda x:int(x.split('/')[-1].split('_')[0])) for scene in scenes}
-
+        with open(osp.join(self.ROOT, f'selected_seqs_{self.split}.json'), 'r') as f:
+            self.scenes = json.load(f)
+            self.scenes = {k: v for k, v in self.scenes.items() if len(v) > 0}
+            self.scenes = {(k, k2): v2 for k, v in self.scenes.items()
+                           for k2, v2 in v.items()}
         self.scene_list = list(self.scenes.keys())
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
-                             for i, j in itertools.combinations(range(60), 2)
-                             if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0 and abs(i - j) != 0]
+                             for i, j in itertools.combinations(range(100), 2)
+                             if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
-
-        self.min_depth = 0.001
-        self.max_depth = 100
 
     def __len__(self):
         return len(self.scene_list) * len(self.combinations)
 
-    def _read_depthmap(self, depthpath):
-        depth = np.array(cv2.imread(depthpath, -1))
+    def _get_metadatapath(self, obj, instance, view_idx):
+        return osp.join(self.ROOT, obj, instance, 'images', f'frame{view_idx:06n}.npz')
 
-        # set invalid or clipped depth values as NaN
-        # depth = np.where((depth == 0) | (depth == 2 ** 16 - 1), np.nan, depth)
+    def _get_impath(self, obj, instance, view_idx):
+        return osp.join(self.ROOT, obj, instance, 'images', f'frame{view_idx:06n}.jpg')
 
-        # convert depth to float and scale it
-        depth = (depth.astype(np.float32) / (2 ** 16 - 1)) * 100 # unit: mm
-        return depth
+    def _get_depthpath(self, obj, instance, view_idx):
+        return osp.join(self.ROOT, obj, instance, 'depths', f'frame{view_idx:06n}.jpg.geometric.png')
+
+    def _get_maskpath(self, obj, instance, view_idx):
+        return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
+
+    def _read_depthmap(self, depthpath, input_metadata):
+        depthmap = imread_cv2(depthpath, cv2.IMREAD_UNCHANGED)
+        depthmap = (depthmap.astype(np.float32) / 65535) * np.nan_to_num(input_metadata['maximum_depth'])
+        return depthmap
 
     def _get_views(self, idx, resolution, rng):
         # choose a scene
@@ -94,56 +86,39 @@ class C3VD(BaseStereoViewDataset):
         while len(imgs_idxs) > 0:  # some images (few) have zero depth
             im_idx = imgs_idxs.pop()
 
-            # if self.invalidate[obj, instance][resolution][im_idx]:
-            #     # search for a valid image
-            #     random_direction = 2 * rng.choice(2) - 1
-            #     for offset in range(1, len(image_pool)):
-            #         tentative_im_idx = (im_idx + (random_direction * offset)) % len(image_pool)
-            #         if not self.invalidate[obj, instance][resolution][tentative_im_idx]:
-            #             im_idx = tentative_im_idx
-            #             break
+            if self.invalidate[obj, instance][resolution][im_idx]:
+                # search for a valid image
+                random_direction = 2 * rng.choice(2) - 1
+                for offset in range(1, len(image_pool)):
+                    tentative_im_idx = (im_idx + (random_direction * offset)) % len(image_pool)
+                    if not self.invalidate[obj, instance][resolution][tentative_im_idx]:
+                        im_idx = tentative_im_idx
+                        break
 
-            impath = image_pool[im_idx]
-            num = int(impath.split('/')[-1].split('_')[0])
-            abs_path = os.path.abspath(os.path.join(impath, ".."))
-            depthpath = os.path.join(abs_path, "%04d_depth.tiff"%num)
+            view_idx = image_pool[im_idx]
 
-            # intrinsic: load camera params
-            cx = 678.544839263292
-            cy = 542.975887548343
-            f = 769.243600037458
-            intrinsics = np.eye(3)
-            intrinsics[0][0] = f
-            intrinsics[1][1] = f
-            intrinsics[0][2] = cx
-            intrinsics[1][2] = cy
-            intrinsics = intrinsics.astype(np.float32)
+            impath = self._get_impath(obj, instance, view_idx)
+            depthpath = self._get_depthpath(obj, instance, view_idx)
 
-            # pose: no quat but matrix
-            poses = []
-            with open(os.path.join(abs_path, "pose.txt"), "r") as f:
-                for line in f.readlines():
-                    line = line.strip().split(',')
-                    # Each line contains a homogenous camera-to-world transformation matrix (flattened in row-major order) corresponding to each frame.
-                    line = np.array(line, dtype=np.float32)
-                    pose = line.reshape(4, 4, order = "F")
-                    poses.append(pose)
-
-            camera_pose = poses[num]
+            # load camera params
+            # metadata_path: suitcase/50_2928_8645/images/frame000054.npz
+            metadata_path = self._get_metadatapath(obj, instance, view_idx)
+            input_metadata = np.load(metadata_path)
+            camera_pose = input_metadata['camera_pose'].astype(np.float32)
+            intrinsics = input_metadata['camera_intrinsics'].astype(np.float32)
 
             # load image and depth
             rgb_image = imread_cv2(impath)
-            depthmap = self._read_depthmap(depthpath)
+            depthmap = self._read_depthmap(depthpath, input_metadata)
 
-            ######## ready to change the
-            # if mask_bg:
-            #     # load object mask
-            #     maskpath = self._get_maskpath(obj, instance, view_idx)
-            #     maskmap = imread_cv2(maskpath, cv2.IMREAD_UNCHANGED).astype(np.float32)
-            #     maskmap = (maskmap / 255.0) > 0.1
-            #
-            #     # update the depthmap with mask
-            #     depthmap *= maskmap
+            if mask_bg:
+                # load object mask
+                maskpath = self._get_maskpath(obj, instance, view_idx)
+                maskmap = imread_cv2(maskpath, cv2.IMREAD_UNCHANGED).astype(np.float32)
+                maskmap = (maskmap / 255.0) > 0.1
+
+                # update the depthmap with mask
+                depthmap *= maskmap
 
             rgb_image, depthmap, intrinsics = self._crop_resize_if_necessary(
                 rgb_image, depthmap, intrinsics, resolution, rng=rng, info=impath)
@@ -172,16 +147,15 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = C3VD(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/C3VD", resolution=224, aug_crop=16)
+    dataset = EndoSlam(split='train', ROOT="/data_new/luxiaoxi/dataset/natural_scene/co3d_subset_processed", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
-    # for idx in range(len(dataset)):
         views = dataset[idx]
         assert len(views) == 2
         print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
-        cam_size = max(auto_cam_size(poses), 5)
+        cam_size = max(auto_cam_size(poses), 0.001)
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
