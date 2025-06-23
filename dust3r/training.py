@@ -321,9 +321,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         #         param.requires_grad = True
 
         for param in base_model.dec_blocks.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
         for param in base_model.dec_blocks2.parameters():
-            param.requires_grad = False
+            param.requires_grad = True
 
     # Apply to the model
     freeze_model(base_model)  # Freeze everything first
