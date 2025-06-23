@@ -172,7 +172,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = C3VD(split='train', ROOT="/data_new/luxiaoxi/dataset/medical_slam/C3VD", resolution=224, aug_crop=16)
+    dataset = C3VD(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/C3VD", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
