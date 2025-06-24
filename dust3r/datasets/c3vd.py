@@ -44,8 +44,7 @@ class C3VD(BaseStereoViewDataset):
 
 
         # scene has the under_review, which is not included
-        scenes = [f.split('_under')[0] for f in scenes]
-        self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "*_color.png")), key=lambda x:int(x.split('/')[-1].split('_')[0])) for scene in scenes}
+        self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "images", "*.png"))) for scene in scenes}
 
         self.scene_list = list(self.scenes.keys())
 
@@ -94,27 +93,31 @@ class C3VD(BaseStereoViewDataset):
         while len(imgs_idxs) > 0:  # some images (few) have zero depth
             im_idx = imgs_idxs.pop()
 
-            # if self.invalidate[obj, instance][resolution][im_idx]:
-            #     # search for a valid image
-            #     random_direction = 2 * rng.choice(2) - 1
-            #     for offset in range(1, len(image_pool)):
-            #         tentative_im_idx = (im_idx + (random_direction * offset)) % len(image_pool)
-            #         if not self.invalidate[obj, instance][resolution][tentative_im_idx]:
-            #             im_idx = tentative_im_idx
-            #             break
+            if self.invalidate[obj, instance][resolution][im_idx]:
+                # search for a valid image
+                random_direction = 2 * rng.choice(2) - 1
+                for offset in range(1, len(image_pool)):
+                    tentative_im_idx = (im_idx + (random_direction * offset)) % len(image_pool)
+                    if not self.invalidate[obj, instance][resolution][tentative_im_idx]:
+                        im_idx = tentative_im_idx
+                        break
 
             impath = image_pool[im_idx]
             num = int(impath.split('/')[-1].split('_')[0])
-            abs_path = os.path.abspath(os.path.join(impath, ".."))
-            depthpath = os.path.join(abs_path, "%04d_depth.tiff"%num)
+            abs_path = os.path.abspath(os.path.join(impath, "../.."))
+            depthpath = os.path.join(abs_path, "depths" ,"%04d_depth.tiff"%num)
 
             # intrinsic: load camera params
-            cx = 678.544839263292
-            cy = 542.975887548343
-            f = 769.243600037458
+            # cx = 678.544839263292
+            # cy = 542.975887548343
+            # f = 769.243600037458
+            cx = 674.78637996
+            cy = 549.15093262
+            fx = 770.78529556
+            fy = 770.56878243
             intrinsics = np.eye(3)
-            intrinsics[0][0] = f
-            intrinsics[1][1] = f
+            intrinsics[0][0] = fx
+            intrinsics[1][1] = fy
             intrinsics[0][2] = cx
             intrinsics[1][2] = cy
             intrinsics = intrinsics.astype(np.float32)
@@ -172,7 +175,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = C3VD(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/C3VD", resolution=224, aug_crop=16)
+    dataset = C3VD(split='train', ROOT="/data_new/luxiaoxi/dataset/medical_slam/C3VD_undistorted", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
