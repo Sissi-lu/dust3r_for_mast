@@ -58,7 +58,7 @@ class SyntheticColon(BaseStereoViewDataset):
         #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
         self.combinations = [(i, i + k)
                              for i in range(1200)
-                             for k in [1, 2, 3, 4]
+                             for k in [1, 2, 3]
                              if i + k < 1200]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
