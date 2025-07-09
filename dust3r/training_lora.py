@@ -318,12 +318,15 @@ def train(args):
             print("target_modules:\n ", target_modules)
         return target_modules
 
-
     name_include=[ "enc_blocks.*.mlp.fc1",
-                   "enc_blocks.*.mlp.fc2"
+                   "enc_blocks.*.mlp.fc2",
+                   "enc_blocks.*.attn.qkv",
+                   "enc_blocks.*.attn.proj",
     ]
     target_modules = get_lora_target_modules(model, name_include)
     name_to_train = [
+        "enc_blocks.*.norm1",
+        "enc_blocks.*.norm2",
         "patch_embed",
         "dec_blocks.*",
         "dec_blocks2.*",

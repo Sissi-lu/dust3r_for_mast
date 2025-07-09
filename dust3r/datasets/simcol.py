@@ -50,16 +50,16 @@ class SyntheticColon(BaseStereoViewDataset):
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
-        # self.combinations = [(i, j)
-        #                      for i, j in itertools.combinations(range(60), 2)
-        #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0]
+        self.combinations = [(i, j)
+                             for i, j in itertools.combinations(range(60), 2)
+                             if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0]
         # self.combinations = [(i, j)
         #                      for i, j in itertools.combinations(range(10), 2)
-        #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
-        self.combinations = [(i, i + k)
-                             for i in range(1200)
-                             for k in [1, 2, 3]
-                             if i + k < 1200]
+        # #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
+        # self.combinations = [(i, i + k)
+        #                      for i in range(1200)
+        #                      for k in [1, 2, 3]
+        #                      if i + k < 1200]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
@@ -193,8 +193,8 @@ if __name__ == "__main__":
     dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
-    for idx in range(len(dataset)):
-    # for idx in [24, 28]:
+    # for idx in range(len(dataset)):
+    for idx in [457]:
         views = dataset[idx]
         assert len(views) == 2
         print(view_name(views[0]), view_name(views[1]))
