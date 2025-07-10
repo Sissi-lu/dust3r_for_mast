@@ -293,56 +293,77 @@ def train(args):
     # )
 
     # ---------encoder lora, decoder, head, embed unfreeze------------#
-    def get_lora_target_modules(model, name_include, verbose=True):
-        """
-        根据正则表达式列表，找到模型中匹配的模块名称
-        model: PyTorch 模型
-        name_include: 正则表达式模式列表
-        返回: 匹配的模块名称列表
-        """
-        target_modules = []
+    # def get_lora_target_modules(model, name_include, verbose=True):
+    #     """
+    #     根据正则表达式列表，找到模型中匹配的模块名称
+    #     model: PyTorch 模型
+    #     name_include: 正则表达式模式列表
+    #     返回: 匹配的模块名称列表
+    #     """
+    #     target_modules = []
+    #
+    #     # 将正则表达式中的 .* 转换为适配模块命名的正则模式
+    #     # 假设模块名使用 . 分隔，.* 匹配任意字符（包括数字、字母、下划线等）
+    #     patterns = [re.compile(pattern.replace(".", "\\.").replace("*", ".*")) for pattern in name_include]
+    #
+    #     # 遍历模型的所有命名模块
+    #     for name, module in model.named_modules():
+    #         # 检查模块名是否匹配任一正则表达式
+    #         for pattern in patterns:
+    #             if pattern.fullmatch(name):
+    #                 target_modules.append(name)
+    #                 break  # 匹配到一个模式后跳出，避免重复添加
+    #
+    #     if verbose:
+    #         print("target_modules:\n ", target_modules)
+    #     return target_modules
+    #
+    # name_include=[ "enc_blocks.*.mlp.fc1",
+    #                "enc_blocks.*.mlp.fc2",
+    #                "enc_blocks.*.attn.qkv",
+    #                "enc_blocks.*.attn.proj",
+    # ]
+    # target_modules = get_lora_target_modules(model, name_include)
+    # name_to_train = [
+    #     "enc_blocks.*.norm1",
+    #     "enc_blocks.*.norm2",
+    #     "patch_embed",
+    #     "dec_blocks.*",
+    #     "dec_blocks2.*",
+    #     "decoder_embed",
+    #     "downstream_head1",
+    #     "downstream_head2",
+    # ]
+    # train_modules = get_lora_target_modules(model, name_to_train)
+    # lora_config = LoraConfig(
+    #     r=8,
+    #     lora_alpha=16,
+    #     lora_dropout=0.1,
+    #     target_modules=target_modules,
+    #     modules_to_save=train_modules
+    # #     modules_to_save=[
+    # #         ]
+    # )
 
-        # 将正则表达式中的 .* 转换为适配模块命名的正则模式
-        # 假设模块名使用 . 分隔，.* 匹配任意字符（包括数字、字母、下划线等）
-        patterns = [re.compile(pattern.replace(".", "\\.").replace("*", ".*")) for pattern in name_include]
-
-        # 遍历模型的所有命名模块
-        for name, module in model.named_modules():
-            # 检查模块名是否匹配任一正则表达式
-            for pattern in patterns:
-                if pattern.fullmatch(name):
-                    target_modules.append(name)
-                    break  # 匹配到一个模式后跳出，避免重复添加
-
-        if verbose:
-            print("target_modules:\n ", target_modules)
-        return target_modules
-
-    name_include=[ "enc_blocks.*.mlp.fc1",
-                   "enc_blocks.*.mlp.fc2",
-                   "enc_blocks.*.attn.qkv",
-                   "enc_blocks.*.attn.proj",
-    ]
-    target_modules = get_lora_target_modules(model, name_include)
-    name_to_train = [
-        "enc_blocks.*.norm1",
-        "enc_blocks.*.norm2",
-        "patch_embed",
-        "dec_blocks.*",
-        "dec_blocks2.*",
-        "decoder_embed",
-        "downstream_head1",
-        "downstream_head2",
-    ]
-    train_modules = get_lora_target_modules(model, name_to_train)
+    #---------------all model---------------#
     lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        lora_dropout=0.1,
-        target_modules=target_modules,
-        modules_to_save=train_modules
-    #     modules_to_save=[
-    #         ]
+        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+        init_lora_weights="pissa",
+        r=8,  # Rank of LoRA updates (e.g., 8)
+        lora_alpha=16,  # Scaling factor (e.g., 16)
+        lora_dropout=0.1,  # Dropout for regularization
+        target_modules=[
+            "attn.qkv",  # Encoder and decoder self-attention
+            "attn.proj",
+            "cross_attn.projq",  # Decoder cross-attention
+            "cross_attn.projk",
+            "cross_attn.projv",
+            "cross_attn.proj",
+            "all-linear"
+        ],
+        # target_modules="all-linear",
+        # modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
     )
 
     model = get_peft_model(model, lora_config)
