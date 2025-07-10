@@ -48,7 +48,7 @@ def load_model(model_path, device, verbose=True):
     return net.to(device)
 
 
-class AsymmetricCroCo3DStereo (
+class AsymmetricCroCo3DStereoIllumination (
     CroCoNet,
     huggingface_hub.PyTorchModelHubMixin,
     library_name="dust3r",
@@ -84,7 +84,7 @@ class AsymmetricCroCo3DStereo (
             return load_model(pretrained_model_name_or_path, device='cpu')
         else:
             try:
-                model = super(AsymmetricCroCo3DStereo, cls).from_pretrained(pretrained_model_name_or_path, **kw)
+                model = super(AsymmetricCroCo3DStereoIllumination, cls).from_pretrained(pretrained_model_name_or_path, **kw)
             except TypeError as e:
                 raise Exception(f'tried to load {pretrained_model_name_or_path} from huggingface, but failed')
             return model
@@ -129,9 +129,9 @@ class AsymmetricCroCo3DStereo (
         self.head1 = transpose_to_landscape(self.downstream_head1, activate=landscape_only)
         self.head2 = transpose_to_landscape(self.downstream_head2, activate=landscape_only)
 
-    def _encode_image(self, image, true_shape):
+    def _encode_image(self, image, true_shape, illumniation):
         # embed the image into patches  (x has size B x Npatches x C)
-        x, pos = self.patch_embed(image, true_shape=true_shape)
+        x, pos = self.patch_embed(image, true_shape=true_shape, illumination=illumniation)
 
         # add positional embedding without cls token
         assert self.enc_pos_embed is None
@@ -143,15 +143,16 @@ class AsymmetricCroCo3DStereo (
         x = self.enc_norm(x)
         return x, pos, None
 
-    def _encode_image_pairs(self, img1, img2, true_shape1, true_shape2):
+    def _encode_image_pairs(self, img1, img2, true_shape1, true_shape2, illumination1, illumination2):
         if img1.shape[-2:] == img2.shape[-2:]:
             out, pos, _ = self._encode_image(torch.cat((img1, img2), dim=0),
-                                             torch.cat((true_shape1, true_shape2), dim=0))
+                                             torch.cat((true_shape1, true_shape2), dim=0),
+                                             torch.cat((illumination1, illumination2), dim=0))
             out, out2 = out.chunk(2, dim=0)
             pos, pos2 = pos.chunk(2, dim=0)
         else:
-            out, pos, _ = self._encode_image(img1, true_shape1)
-            out2, pos2, _ = self._encode_image(img2, true_shape2)
+            out, pos, _ = self._encode_image(img1, true_shape1, illumination1)
+            out2, pos2, _ = self._encode_image(img2, true_shape2, illumination2)
         return out, out2, pos, pos2
 
     def _encode_symmetrized(self, view1, view2):
@@ -162,14 +163,16 @@ class AsymmetricCroCo3DStereo (
         shape1 = view1.get('true_shape', torch.tensor(img1.shape[-2:])[None].repeat(B, 1))
         shape2 = view2.get('true_shape', torch.tensor(img2.shape[-2:])[None].repeat(B, 1))
         # warning! maybe the images have different portrait/landscape orientations
+        illumination1 = view1['illumination']
+        illumination2 = view2['illumination']
 
         if is_symmetrized(view1, view2):
             # computing half of forward pass!'
-            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1[::2], img2[::2], shape1[::2], shape2[::2], )
+            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1[::2], img2[::2], shape1[::2], shape2[::2], illumination1[::2], illumination2[::2])
             feat1, feat2 = interleave(feat1, feat2)
             pos1, pos2 = interleave(pos1, pos2)
         else:
-            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1, img2, shape1, shape2)
+            feat1, feat2, pos1, pos2 = self._encode_image_pairs(img1, img2, shape1, shape2, illumination1, illumination2)
 
         return (shape1, shape2), (feat1, feat2), (pos1, pos2)
 

@@ -24,13 +24,13 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
 
-class SyntheticColon(BaseStereoViewDataset):
+class SyntheticColonIllumination(BaseStereoViewDataset):
     def __init__(self, mask_bg=True, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
-        self.dataset_label = 'SyntheticColon'
+        self.dataset_label = 'SyntheticColonIllumination'
 
         # load all scenes
         scenes = []
@@ -50,16 +50,16 @@ class SyntheticColon(BaseStereoViewDataset):
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
-        # self.combinations = [(i, j)
-        #                      for i, j in itertools.combinations(range(60), 2)
-        #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0]
+        self.combinations = [(i, j)
+                             for i, j in itertools.combinations(range(60), 2)
+                             if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0]
         # self.combinations = [(i, j)
         #                      for i, j in itertools.combinations(range(10), 2)
         # #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
-        self.combinations = [(i, i + k)
-                             for i in range(1200)
-                             for k in [1, 2, 3]
-                             if i + k < 1200]
+        # self.combinations = [(i, i + k)
+        #                      for i in range(1200)
+        #                      for k in [1, 2, 3]
+        #                      if i + k < 1200]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
@@ -173,6 +173,15 @@ class SyntheticColon(BaseStereoViewDataset):
                 imgs_idxs.append(im_idx)
                 continue
 
+            # # directly concat the illumination into RGB image
+            # hsv_image = rgb_image.convert('HSV')
+            # h, s, v = hsv_image.split()
+            #
+            # rgb_image = np.array(rgb_image)
+            # v = np.array(v)
+            # v = v[..., np.newaxis]
+            # rgb_image = np.concatenate([rgb_image, v], axis=2)
+
             views.append(dict(
                 img=rgb_image,
                 depthmap=depthmap,
@@ -181,6 +190,7 @@ class SyntheticColon(BaseStereoViewDataset):
                 dataset=self.dataset_label,
                 label=osp.join(obj, instance),
                 instance=osp.split(impath)[1],
+                # illumination=v
             ))
         return views
 
@@ -190,7 +200,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
+    dataset = SyntheticColonIllumination(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
