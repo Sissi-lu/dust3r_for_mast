@@ -80,9 +80,9 @@ def get_args_parser():
     parser.add_argument('--eval_freq', type=int, default=1, help='Test loss evaluation frequency')
     parser.add_argument('--save_freq', default=1, type=int,
                         help='frequence (number of epochs) to save checkpoint in checkpoint-last.pth')
-    parser.add_argument('--keep_freq', default=20, type=int,
+    parser.add_argument('--keep_freq', default=2, type=int,
                         help='frequence (number of epochs) to save checkpoint in checkpoint-%d.pth')
-    parser.add_argument('--print_freq', default=20, type=int,
+    parser.add_argument('--print_freq', default=2, type=int,
                         help='frequence (number of iterations) to print infos while training')
 
     # output dir
