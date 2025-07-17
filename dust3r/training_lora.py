@@ -363,7 +363,7 @@ def train(args):
             "all-linear"
         ],
         # target_modules="all-linear",
-        # modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
     )
 
     model = get_peft_model(model, lora_config)
