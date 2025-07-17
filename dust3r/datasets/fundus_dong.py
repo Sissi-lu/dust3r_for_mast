@@ -6,8 +6,16 @@ import os
 import cv2
 import numpy as np
 
+import sys
+sys.path.append("/data/luxiaoxi/code_proj/depth_estimation/MedicalMast3R/dust3r")
+
 from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
+
+# from utils.image import imread_cv2
+# from base.base_stereo_view_dataset import BaseStereoViewDataset
+
+
 
 def extract_K(data):
     fx = data['lens']*512/data['sensor_width']
@@ -74,7 +82,6 @@ class FundusDong(BaseStereoViewDataset):
         self.mask_bg = mask_bg
         self.dataset_label = 'fundus'
 
-
         self.pairs = []
         self.scenes = []
 
@@ -113,7 +120,8 @@ class FundusDong(BaseStereoViewDataset):
         # clip_end = 100.0  # Far clipping plane (meters)
 
         # Convert uint8 depth values (0-255) to metric depth
-        depth_map = depth_map/256  # Normalize to 0-1
+        # depth_map = depth_map/256  # Normalize to 0-1
+        # depth_map = depth_map
         # metric_depth = (clip_start + (clip_end - clip_start) * normalized_depth).astype("float32")
         return depth_map.astype("float32")
 
@@ -167,17 +175,26 @@ class FundusDong(BaseStereoViewDataset):
 
             # -------use world matrix generated directly from blender----#
             if idx == 0:
-                intrinsics = np.array(new_calib["k_l"], dtype="float32")
-                # camera_pose = np.linalg.inv(np.array(calib["w2cl"], dtype="float32"))
-                camera_pose = np.array(new_calib["w2cl"], dtype='float32')
+                # intrinsics = np.array(new_calib["k_l"], dtype="float32")
+                # # camera_pose = np.linalg.inv(np.array(calib["w2cl"], dtype="float32"))
+                # camera_pose = np.array(new_calib["w2cl"], dtype='float32')
+                # camera_pose = np.linalg.inv(camera_pose)
                 # in fact, it's already c2w, with respect to world coordinate frame
+                intrinsics = extract_K(calib_org['camera_l']).astype(np.float32)
+                camera_pose = np.array(calib_org['camera_l']['word_matrix']).astype(np.float32)
+                # camera_pose = np.eye(4, dtype="float32")
+                # camera_pose = np.linalg.inv(camera_pose)
+
             else:
-                intrinsics = np.array(new_calib["k_r"], dtype="float32")
-                # camera_pose = np.linalg.inv(np.array(calib["w2cr"], dtype="float32"))
-                camera_pose = np.array(new_calib["w2cr"], dtype='float32')
+                # intrinsics = np.array(new_calib["k_r"], dtype="float32")
+                # # camera_pose = np.linalg.inv(np.array(calib["w2cr"], dtype="float32"))
+                # camera_pose = np.array(new_calib["w2cr"], dtype='float32')
+
                 # in fact, it's already c2w, with respect to world coordinate frame
-
-
+                intrinsics = extract_K(calib_org['camera_r']).astype(np.float32)
+                camera_pose = np.array(calib_org['camera_r']['word_matrix']).astype(np.float32)
+                # camera_pose = Rot_l2r
+                # camera_pose = np.linalg.inv(camera_pose)
 
             # ------use the quaternion and transform it into rotation matrix ----#
             # if idx == 0:
@@ -206,6 +223,12 @@ class FundusDong(BaseStereoViewDataset):
                 label=rgb_path,
                 instance=frame_num,
             ))
+
+        print(views[0]["camera_pose"] == views[1]["camera_pose"])
+        tf_matrix = views[0]["camera_pose"] == views[1]["camera_pose"]
+        if sum(sum(tf_matrix[:3, :3])) != 9:
+            views[1]["camera_pose"][:3, :3] = views[0]["camera_pose"][:3, :3]
+            print("changed")
         return views
 
 
@@ -218,38 +241,47 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import torch
 
-    dataset = Fundus(split='train', ROOT="/data/luxiaoxi/dataset/medical_depth/Fundus_preprocessed", resolution=224, aug_crop=16)
+    data_root = "/data/luxiaoxi/dataset/medical_depth/final_version_processed"
+    train_running_list = []
+    with open(os.path.join(data_root, "split", "train.txt")) as file:
+        for line in file.readlines():
+            line = line.strip('\n').split(',')[0]
+            train_running_list.append(line)
+
+    dataset = FundusDong(split='train', ROOT=data_root, running_list=train_running_list, resolution=512, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     for idx in range(len(dataset)):
         views = dataset[idx]
-        assert len(views) == 2
-        depth_left = views[0]["depthmap"]
-        depth_right = views[1]["depthmap"]
-        rgb_left = views[0]["img"].permute(1, 2, 0)
-        rgb_right = views[1]["img"].permute(1, 2, 0)
+        # assert len(views) == 2
+        # depth_left = views[0]["depthmap"]
+        # depth_right = views[1]["depthmap"]
+        # rgb_left = views[0]["img"].permute(1, 2, 0)
+        # rgb_right = views[1]["img"].permute(1, 2, 0)
+        #
+        # depth = np.concatenate([depth_left, depth_right], axis=1)
+        # plt.imshow(depth, cmap="jet")
+        # plt.show()
+        #
+        # rgb_combine = torch.concat([rgb_left, rgb_right], dim=1)
+        # plt.imshow(rgb_combine)
+        # plt.show()
+        #
+        # diff_depth = depth_left - depth_right
+        # plt.imshow(diff_depth, cmap="grey")
+        # plt.title("Difference of depth images")
+        # plt.show()
+        #
+        # diff = rgb_left - rgb_right
+        # plt.imshow(diff, cmap="grey")
+        # plt.title("Difference of RGB images")
+        # plt.show()
 
-        depth = np.concatenate([depth_left, depth_right], axis=1)
-        plt.imshow(depth, cmap="jet")
-        plt.show()
+        print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
+        print("views[0] matrix: %s\n" % views[0]["camera_pose"])
+        print("views[1] matrix: %s\n" % views[1]["camera_pose"])
+        print(views[0]["camera_pose"] == views[1]["camera_pose"])
 
-        rgb_combine = torch.concat([rgb_left, rgb_right], dim=1)
-        plt.imshow(rgb_combine)
-        plt.show()
-
-        diff_depth = depth_left - depth_right
-        plt.imshow(diff_depth, cmap="grey")
-        plt.title("Difference of depth images")
-        plt.show()
-
-        diff = rgb_left - rgb_right
-        plt.imshow(diff, cmap="grey")
-        plt.title("Difference of RGB images")
-        plt.show()
-
-
-
-        print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
         cam_size = max(auto_cam_size(poses), 1)
