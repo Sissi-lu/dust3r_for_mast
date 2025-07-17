@@ -34,7 +34,7 @@ from dust3r.inference import loss_of_one_batch  # noqa
 import dust3r.utils.path_to_croco  # noqa: F401
 import croco.utils.misc as misc  # noqa
 from croco.utils.misc import NativeScalerWithGradNormCount as NativeScaler  # noqa
-
+from peft import LoraConfig, get_peft_model, PeftModel
 
 def get_args_parser():
     parser = argparse.ArgumentParser('DUST3R training', add_help=False)
@@ -81,9 +81,9 @@ def get_args_parser():
     parser.add_argument('--eval_freq', type=int, default=1, help='Test loss evaluation frequency')
     parser.add_argument('--save_freq', default=1, type=int,
                         help='frequence (number of epochs) to save checkpoint in checkpoint-last.pth')
-    parser.add_argument('--keep_freq', default=20, type=int,
+    parser.add_argument('--keep_freq', default=2, type=int,
                         help='frequence (number of epochs) to save checkpoint in checkpoint-%d.pth')
-    parser.add_argument('--print_freq', default=20, type=int,
+    parser.add_argument('--print_freq', default=2, type=int,
                         help='frequence (number of iterations) to print infos while training')
 
     # output dir
@@ -171,6 +171,32 @@ def train(args):
     print("accumulate grad iterations: %d" % args.accum_iter)
     print("effective batch size: %d" % eff_batch_size)
 
+    ##----------------if using lora finetune please remember --------------#
+    lora_config = LoraConfig(
+        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+        init_lora_weights="pissa",
+        r=8,  # Rank of LoRA updates (e.g., 8)
+        lora_alpha=16,  # Scaling factor (e.g., 16)
+        lora_dropout=0.1,  # Dropout for regularization
+        target_modules=[
+            "attn.qkv",  # Encoder and decoder self-attention
+            "attn.proj",
+            "cross_attn.projq",  # Decoder cross-attention
+            "cross_attn.projk",
+            "cross_attn.projv",
+            "cross_attn.proj",
+            "all-linear"
+        ],
+        # target_modules="all-linear",
+        # modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    )
+
+    model = get_peft_model(model, lora_config)
+    model.to(device)
+    model.print_trainable_parameters()  # Verify trainable parameters
+    model_without_ddp = model
+
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[args.gpu], find_unused_parameters=True, static_graph=True)
@@ -197,8 +223,29 @@ def train(args):
                 f.write(json.dumps(log_stats) + "\n")
 
     def save_model(epoch, fname, best_so_far):
-        misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch, fname=fname, best_so_far=best_so_far)
+        ##----------------------freeze---------------------------#
+        # misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer,
+        #                 loss_scaler=loss_scaler, epoch=epoch, fname=fname, best_so_far=best_so_far)
+
+        ##------------------------lora----------------------------#
+        output_dir = Path(args.output_dir)
+        checkpoint_path = output_dir / f'checkpoint-{fname}.pth'
+        to_save = {
+            'model': model_without_ddp.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'loss_scaler': loss_scaler.state_dict(),
+            'epoch': epoch,
+            'best_so_far': best_so_far,
+            'args': args
+        }
+        misc.save_on_master(to_save, checkpoint_path)
+
+        # Save LoRA adapter
+        # if isinstance(model_without_ddp, PeftModel):
+        lora_dir = output_dir / f'lora-{fname}'
+        model_without_ddp.save_pretrained(lora_dir, save_adapter=True, save_config=True)
+        if misc.is_main_process():
+            print(f"Saved LoRA adapter to {lora_dir} with adapter_config.json")
 
     best_so_far = misc.load_model(args=args, model_without_ddp=model_without_ddp,
                                   optimizer=optimizer, loss_scaler=loss_scaler)
@@ -259,18 +306,36 @@ def train(args):
 
 
 def save_final_model(args, epoch, model_without_ddp, best_so_far=None):
+    ##====================freeze=======================##
+    # output_dir = Path(args.output_dir)
+    # checkpoint_path = output_dir / 'checkpoint-final.pth'
+    # to_save = {
+    #     'args': args,
+    #     'model': model_without_ddp if isinstance(model_without_ddp, dict) else model_without_ddp.cpu().state_dict(),
+    #     'epoch': epoch
+    # }
+    # if best_so_far is not None:
+    #     to_save['best_so_far'] = best_so_far
+    # print(f'>> Saving model to {checkpoint_path} ...')
+    # misc.save_on_master(to_save, checkpoint_path)
+
+    ##======================lora======================##
     output_dir = Path(args.output_dir)
     checkpoint_path = output_dir / 'checkpoint-final.pth'
     to_save = {
-        'args': args,
-        'model': model_without_ddp if isinstance(model_without_ddp, dict) else model_without_ddp.cpu().state_dict(),
-        'epoch': epoch
+        'model': model_without_ddp.state_dict(),
+        'epoch': epoch,
+        'best_so_far': best_so_far,
+        'args': args
     }
-    if best_so_far is not None:
-        to_save['best_so_far'] = best_so_far
-    print(f'>> Saving model to {checkpoint_path} ...')
     misc.save_on_master(to_save, checkpoint_path)
 
+    # Save LoRA adapter
+    if hasattr(model_without_ddp, 'peft_config'):
+        lora_dir = output_dir / 'lora-final'
+        model_without_ddp.save_pretrained(lora_dir)
+        if misc.is_main_process():
+            print(f"Saved LoRA adapter to {lora_dir}")
 
 def build_dataset(dataset, batch_size, num_workers, test=False):
     split = ['Train', 'Test'][test]
