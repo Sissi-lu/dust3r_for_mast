@@ -358,7 +358,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     log_writer=None):
     assert torch.backends.cuda.matmul.allow_tf32 == True
 
-    base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+    # base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
 
     # # Freeze encoder
     # for param in base_model.patch_embed.parameters():
@@ -380,41 +380,41 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     # for param in base_model.downstream_head2.parameters():
     #     param.requires_grad = True
 
-    def freeze_model(model):
-        for param in model.parameters():
-            param.requires_grad = False
-
-    def unfreeze_layers(model):
-        # Unfreeze downstream heads
-        for param in model.downstream_head1.parameters():
-            param.requires_grad = True
-        for param in model.downstream_head2.parameters():
-            param.requires_grad = True
-
-        # Unfreeze decoder_embed
-        for param in model.decoder_embed.parameters():
-            param.requires_grad = True
-        # Unfreeze encoder_embed
-        for param in model.patch_embed.parameters():
-            param.requires_grad = True
-
-        #
-        # # Unfreeze last 6 decoder blocks
-        # for block in model.dec_blocks[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
-        # for block in model.dec_blocks2[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
-
-        for param in base_model.dec_blocks.parameters():
-            param.requires_grad = True
-        for param in base_model.dec_blocks2.parameters():
-            param.requires_grad = True
-
-    # Apply to the model
-    freeze_model(base_model)  # Freeze everything first
-    unfreeze_layers(base_model)  # Unfreeze selected layers
+    # def freeze_model(model):
+    #     for param in model.parameters():
+    #         param.requires_grad = False
+    #
+    # def unfreeze_layers(model):
+    #     # Unfreeze downstream heads
+    #     for param in model.downstream_head1.parameters():
+    #         param.requires_grad = True
+    #     for param in model.downstream_head2.parameters():
+    #         param.requires_grad = True
+    #
+    #     # Unfreeze decoder_embed
+    #     for param in model.decoder_embed.parameters():
+    #         param.requires_grad = True
+    #     # Unfreeze encoder_embed
+    #     for param in model.patch_embed.parameters():
+    #         param.requires_grad = True
+    #
+    #     #
+    #     # # Unfreeze last 6 decoder blocks
+    #     # for block in model.dec_blocks[6:]:
+    #     #     for param in block.parameters():
+    #     #         param.requires_grad = True
+    #     # for block in model.dec_blocks2[6:]:
+    #     #     for param in block.parameters():
+    #     #         param.requires_grad = True
+    #
+    #     for param in base_model.dec_blocks.parameters():
+    #         param.requires_grad = True
+    #     for param in base_model.dec_blocks2.parameters():
+    #         param.requires_grad = True
+    #
+    # # Apply to the model
+    # freeze_model(base_model)  # Freeze everything first
+    # unfreeze_layers(base_model)  # Unfreeze selected layers
 
     # Verify
     for name, param in model.named_parameters():
