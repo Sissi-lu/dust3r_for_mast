@@ -224,11 +224,11 @@ class FundusDong(BaseStereoViewDataset):
                 instance=frame_num,
             ))
 
-        print(views[0]["camera_pose"] == views[1]["camera_pose"])
+        # print(views[0]["camera_pose"] == views[1]["camera_pose"])
         tf_matrix = views[0]["camera_pose"] == views[1]["camera_pose"]
         if sum(sum(tf_matrix[:3, :3])) != 9:
             views[1]["camera_pose"][:3, :3] = views[0]["camera_pose"][:3, :3]
-            print("changed")
+            # print("changed")
         return views
 
 
@@ -277,10 +277,10 @@ if __name__ == "__main__":
         # plt.title("Difference of RGB images")
         # plt.show()
 
-        print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
-        print("views[0] matrix: %s\n" % views[0]["camera_pose"])
-        print("views[1] matrix: %s\n" % views[1]["camera_pose"])
-        print(views[0]["camera_pose"] == views[1]["camera_pose"])
+        # print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
+        # print("views[0] matrix: %s\n" % views[0]["camera_pose"])
+        # print("views[1] matrix: %s\n" % views[1]["camera_pose"])
+        # print(views[0]["camera_pose"] == views[1]["camera_pose"])
 
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
