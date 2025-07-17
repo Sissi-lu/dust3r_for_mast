@@ -362,7 +362,6 @@ def train(args):
             "cross_attn.proj",
             "all-linear"
         ],
-        # target_modules="all-linear",
         modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
     )
 
