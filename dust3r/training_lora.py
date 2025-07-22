@@ -353,15 +353,16 @@ def train(args):
         r=8,  # Rank of LoRA updates (e.g., 8)
         lora_alpha=16,  # Scaling factor (e.g., 16)
         lora_dropout=0.1,  # Dropout for regularization
-        target_modules=[
-            "attn.qkv",  # Encoder and decoder self-attention
-            "attn.proj",
-            "cross_attn.projq",  # Decoder cross-attention
-            "cross_attn.projk",
-            "cross_attn.projv",
-            "cross_attn.proj",
-            "all-linear"
-        ],
+        # target_modules=[
+        #     "attn.qkv",  # Encoder and decoder self-attention
+        #     "attn.proj",
+        #     "cross_attn.projq",  # Decoder cross-attention
+        #     "cross_attn.projk",
+        #     "cross_attn.projv",
+        #     "cross_attn.proj",
+        #     "all-linear"
+        # ],
+        target_modules="all-linear",
         modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
     )
 
