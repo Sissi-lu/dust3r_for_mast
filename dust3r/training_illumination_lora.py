@@ -172,30 +172,30 @@ def train(args):
     print("effective batch size: %d" % eff_batch_size)
 
     ##----------------if using lora finetune please remember --------------#
-    # lora_config = LoraConfig(
-    #     # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
-    #     # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
-    #     init_lora_weights="pissa",
-    #     r=8,  # Rank of LoRA updates (e.g., 8)
-    #     lora_alpha=16,  # Scaling factor (e.g., 16)
-    #     lora_dropout=0.1,  # Dropout for regularization
-    #     target_modules=[
-    #         "attn.qkv",  # Encoder and decoder self-attention
-    #         "attn.proj",
-    #         "cross_attn.projq",  # Decoder cross-attention
-    #         "cross_attn.projk",
-    #         "cross_attn.projv",
-    #         "cross_attn.proj",
-    #         "all-linear"
-    #     ],
-    #     # target_modules="all-linear",
-    #     modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
-    # )
-    #
-    # model = get_peft_model(model, lora_config)
-    # model.to(device)
-    # model.print_trainable_parameters()  # Verify trainable parameters
-    # model_without_ddp = model
+    lora_config = LoraConfig(
+        # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+        # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+        init_lora_weights="pissa",
+        r=8,  # Rank of LoRA updates (e.g., 8)
+        lora_alpha=16,  # Scaling factor (e.g., 16)
+        lora_dropout=0.1,  # Dropout for regularization
+        target_modules=[
+            "attn.qkv",  # Encoder and decoder self-attention
+            "attn.proj",
+            "cross_attn.projq",  # Decoder cross-attention
+            "cross_attn.projk",
+            "cross_attn.projv",
+            "cross_attn.proj",
+            "all-linear"
+        ],
+        # target_modules="all-linear",
+        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    )
+
+    model = get_peft_model(model, lora_config)
+    model.to(device)
+    model.print_trainable_parameters()  # Verify trainable parameters
+    model_without_ddp = model
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -224,28 +224,28 @@ def train(args):
 
     def save_model(epoch, fname, best_so_far):
         ##----------------------freeze---------------------------#
-        misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                        loss_scaler=loss_scaler, epoch=epoch, fname=fname, best_so_far=best_so_far)
+        # misc.save_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer,
+        #                 loss_scaler=loss_scaler, epoch=epoch, fname=fname, best_so_far=best_so_far)
 
         ##------------------------lora----------------------------#
-        # output_dir = Path(args.output_dir)
-        # checkpoint_path = output_dir / f'checkpoint-{fname}.pth'
-        # to_save = {
-        #     'model': model_without_ddp.state_dict(),
-        #     'optimizer': optimizer.state_dict(),
-        #     'loss_scaler': loss_scaler.state_dict(),
-        #     'epoch': epoch,
-        #     'best_so_far': best_so_far,
-        #     'args': args
-        # }
-        # misc.save_on_master(to_save, checkpoint_path)
-        #
-        # # Save LoRA adapter
-        # # if isinstance(model_without_ddp, PeftModel):
-        # lora_dir = output_dir / f'lora-{fname}'
-        # model_without_ddp.save_pretrained(lora_dir, save_adapter=True, save_config=True)
-        # if misc.is_main_process():
-        #     print(f"Saved LoRA adapter to {lora_dir} with adapter_config.json")
+        output_dir = Path(args.output_dir)
+        checkpoint_path = output_dir / f'checkpoint-{fname}.pth'
+        to_save = {
+            'model': model_without_ddp.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'loss_scaler': loss_scaler.state_dict(),
+            'epoch': epoch,
+            'best_so_far': best_so_far,
+            'args': args
+        }
+        misc.save_on_master(to_save, checkpoint_path)
+
+        # Save LoRA adapter
+        # if isinstance(model_without_ddp, PeftModel):
+        lora_dir = output_dir / f'lora-{fname}'
+        model_without_ddp.save_pretrained(lora_dir, save_adapter=True, save_config=True)
+        if misc.is_main_process():
+            print(f"Saved LoRA adapter to {lora_dir} with adapter_config.json")
 
     best_so_far = misc.load_model(args=args, model_without_ddp=model_without_ddp,
                                   optimizer=optimizer, loss_scaler=loss_scaler)
@@ -307,35 +307,35 @@ def train(args):
 
 def save_final_model(args, epoch, model_without_ddp, best_so_far=None):
     ##====================freeze=======================##
-    output_dir = Path(args.output_dir)
-    checkpoint_path = output_dir / 'checkpoint-final.pth'
-    to_save = {
-        'args': args,
-        'model': model_without_ddp if isinstance(model_without_ddp, dict) else model_without_ddp.cpu().state_dict(),
-        'epoch': epoch
-    }
-    if best_so_far is not None:
-        to_save['best_so_far'] = best_so_far
-    print(f'>> Saving model to {checkpoint_path} ...')
-    misc.save_on_master(to_save, checkpoint_path)
-
-    ##======================lora======================##
     # output_dir = Path(args.output_dir)
     # checkpoint_path = output_dir / 'checkpoint-final.pth'
     # to_save = {
-    #     'model': model_without_ddp.state_dict(),
-    #     'epoch': epoch,
-    #     'best_so_far': best_so_far,
-    #     'args': args
+    #     'args': args,
+    #     'model': model_without_ddp if isinstance(model_without_ddp, dict) else model_without_ddp.cpu().state_dict(),
+    #     'epoch': epoch
     # }
+    # if best_so_far is not None:
+    #     to_save['best_so_far'] = best_so_far
+    # print(f'>> Saving model to {checkpoint_path} ...')
     # misc.save_on_master(to_save, checkpoint_path)
-    #
-    # # Save LoRA adapter
-    # if hasattr(model_without_ddp, 'peft_config'):
-    #     lora_dir = output_dir / 'lora-final'
-    #     model_without_ddp.save_pretrained(lora_dir)
-    #     if misc.is_main_process():
-    #         print(f"Saved LoRA adapter to {lora_dir}")
+
+    ##======================lora======================##
+    output_dir = Path(args.output_dir)
+    checkpoint_path = output_dir / 'checkpoint-final.pth'
+    to_save = {
+        'model': model_without_ddp.state_dict(),
+        'epoch': epoch,
+        'best_so_far': best_so_far,
+        'args': args
+    }
+    misc.save_on_master(to_save, checkpoint_path)
+
+    # Save LoRA adapter
+    if hasattr(model_without_ddp, 'peft_config'):
+        lora_dir = output_dir / 'lora-final'
+        model_without_ddp.save_pretrained(lora_dir)
+        if misc.is_main_process():
+            print(f"Saved LoRA adapter to {lora_dir}")
 
 def build_dataset(dataset, batch_size, num_workers, test=False):
     split = ['Train', 'Test'][test]
@@ -358,9 +358,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     log_writer=None):
     assert torch.backends.cuda.matmul.allow_tf32 == True
 
-    base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+    # base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
 
-    # Freeze encoder
+    # # Freeze encoder
     # for param in base_model.patch_embed.parameters():
     #     param.requires_grad = False
     # for param in base_model.enc_blocks.parameters():
@@ -380,41 +380,41 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     # for param in base_model.downstream_head2.parameters():
     #     param.requires_grad = True
 
-    def freeze_model(model):
-        for param in model.parameters():
-            param.requires_grad = False
-
-    def unfreeze_layers(model):
-        # Unfreeze downstream heads
-        for param in model.downstream_head1.parameters():
-            param.requires_grad = False
-        for param in model.downstream_head2.parameters():
-            param.requires_grad = False
-
-        # Unfreeze decoder_embed
-        for param in model.decoder_embed.parameters():
-            param.requires_grad = True
-        # Unfreeze encoder_embed
-        for param in model.patch_embed.parameters():
-            param.requires_grad = True
-
-        #
-        # # Unfreeze last 6 decoder blocks
-        # for block in model.dec_blocks[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
-        # for block in model.dec_blocks2[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
-
-        for param in base_model.dec_blocks.parameters():
-            param.requires_grad = False
-        for param in base_model.dec_blocks2.parameters():
-            param.requires_grad = False
-
-    # Apply to the model
-    freeze_model(base_model)  # Freeze everything first
-    unfreeze_layers(base_model)  # Unfreeze selected layers
+    # def freeze_model(model):
+    #     for param in model.parameters():
+    #         param.requires_grad = False
+    #
+    # def unfreeze_layers(model):
+    #     # Unfreeze downstream heads
+    #     for param in model.downstream_head1.parameters():
+    #         param.requires_grad = True
+    #     for param in model.downstream_head2.parameters():
+    #         param.requires_grad = True
+    #
+    #     # Unfreeze decoder_embed
+    #     for param in model.decoder_embed.parameters():
+    #         param.requires_grad = True
+    #     # Unfreeze encoder_embed
+    #     for param in model.patch_embed.parameters():
+    #         param.requires_grad = True
+    #
+    #     #
+    #     # # Unfreeze last 6 decoder blocks
+    #     # for block in model.dec_blocks[6:]:
+    #     #     for param in block.parameters():
+    #     #         param.requires_grad = True
+    #     # for block in model.dec_blocks2[6:]:
+    #     #     for param in block.parameters():
+    #     #         param.requires_grad = True
+    #
+    #     for param in base_model.dec_blocks.parameters():
+    #         param.requires_grad = True
+    #     for param in base_model.dec_blocks2.parameters():
+    #         param.requires_grad = True
+    #
+    # # Apply to the model
+    # freeze_model(base_model)  # Freeze everything first
+    # unfreeze_layers(base_model)  # Unfreeze selected layers
 
     # Verify
     for name, param in model.named_parameters():
