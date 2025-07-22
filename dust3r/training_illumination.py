@@ -393,7 +393,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         # Unfreeze decoder_embed
         for param in model.decoder_embed.parameters():
-            param.requires_grad = True
+            param.requires_grad = False
         # Unfreeze encoder_embed
         for param in model.patch_embed.parameters():
             param.requires_grad = True
