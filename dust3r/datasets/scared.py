@@ -47,14 +47,24 @@ class SCARED(BaseStereoViewDataset):
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
-        self.combinations = [(i, j)
-                             for i, j in itertools.combinations(range(100), 2)
-                             if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
+        # self.combinations = [(i, j)
+        #                      for i, j in itertools.combinations(range(100), 2)
+        #                      if 0 < abs(i - j) <= 30 and abs(i - j) % 5 == 0]
+
+        self.combinations = dict()
+        self.combinations_length = 0
+        for scene_name, lst in zip(self.scenes.keys(), self.scenes.values()):
+            pairs = [(i, i + k)
+                     for i in range(len(lst))
+                     for k in [1, 2, 3]
+                     if i + k < len(lst)]
+            self.combinations_length = self.combinations_length + len(pairs)
+            self.combinations[scene_name] = pairs
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
     def __len__(self):
-        return len(self.scene_list) * len(self.combinations)
+        return self.combinations_length
 
     def _get_metadatapath(self, obj, instance, view_idx):
         return osp.join(self.ROOT, instance, 'image_02/data/frame_data', f'frame_data%06d.json'%view_idx)
@@ -78,9 +88,25 @@ class SCARED(BaseStereoViewDataset):
 
     def _get_views(self, idx, resolution, rng):
         # choose a scene
-        obj, instance = self.scene_list[idx // len(self.combinations)]
-        image_pool = self.scenes[obj, instance]
-        im1_idx, im2_idx = self.combinations[idx % len(self.combinations)]
+        def find_element_by_index(dictionary, idx):
+            if idx < 0:
+                return None, None, None  # 无效索引
+
+            current_idx = 0
+            for key, lst in dictionary.items():
+                if not isinstance(lst, list):
+                    continue  # 跳过非列表值
+                list_length = len(lst)
+                if current_idx + list_length > idx:
+                    # 找到目标索引所在的列表
+                    index_in_list = idx - current_idx
+                    return key, index_in_list
+                current_idx += list_length
+            return None, None, None  # 索引超出范围
+
+        (obj, instance), index_in_list = find_element_by_index(self.combinations, idx)
+        image_pool = self.scenes[(obj, instance)]
+        im1_idx, im2_idx = self.combinations[(obj, instance)][index_in_list]
 
         # add a bit of randomness
         last = len(image_pool) - 1
@@ -164,7 +190,7 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = SCARED(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_depth/SCARED", resolution=224, aug_crop=16)
+    dataset = SCARED(split='train', ROOT="/data_new/luxiaoxi/dataset/medical_depth/SCARED", resolution=224, aug_crop=16)
 
     for idx in np.random.permutation(len(dataset)):
         views = dataset[idx]
