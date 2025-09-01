@@ -45,7 +45,7 @@ class C3VD(BaseStereoViewDataset):
 
         # scene has the under_review, which is not included
         self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "images", "*.png"))) for scene in scenes}
-
+        total_length = sum(len(lst) for lst in self.scenes.values())
         self.scene_list = list(self.scenes.keys())
 
         # for each scene, we have 100 images ==> 360 degrees (so 25 frames ~= 90 degrees)
@@ -53,17 +53,23 @@ class C3VD(BaseStereoViewDataset):
         # self.combinations = [(i, j)
         #                      for i, j in itertools.combinations(range(60), 2)
         #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 3 == 0 and abs(i - j) != 0]
-        self.combinations = [(i, i + k)
-                             for i in range(len(self.scenes))
-                             for k in [1, 2, 3]
-                             if i + k < len(self.scenes)]
+        self.combinations = dict()
+        self.combinations_length = 0
+        for scene_name, lst in zip(self.scenes.keys(), self.scenes.values()):
+            pairs = [(i, i + k)
+                                 for i in range(len(lst))
+                                 for k in [1, 2, 3]
+                                 if i + k < len(lst)]
+            self.combinations_length = self.combinations_length + len(pairs)
+            self.combinations[scene_name] = pairs
+
         self.invalidate = {scene: {} for scene in self.scene_list}
 
         self.min_depth = 0.001
         self.max_depth = 100
 
     def __len__(self):
-        return len(self.scene_list) * len(self.combinations)
+        return self.combinations_length
 
     def _read_depthmap(self, depthpath):
         depth = np.array(cv2.imread(depthpath, -1))
@@ -75,11 +81,29 @@ class C3VD(BaseStereoViewDataset):
         depth = (depth.astype(np.float32) / (2 ** 16 - 1)) * 100 # unit: mm
         return depth
 
+
+
     def _get_views(self, idx, resolution, rng):
         # choose a scene
-        obj, instance = self.scene_list[idx // len(self.combinations)]
-        image_pool = self.scenes[obj, instance]
-        im1_idx, im2_idx = self.combinations[idx % len(self.combinations)]
+        def find_element_by_index(dictionary, idx):
+            if idx < 0:
+                return None, None, None  # 无效索引
+
+            current_idx = 0
+            for key, lst in dictionary.items():
+                if not isinstance(lst, list):
+                    continue  # 跳过非列表值
+                list_length = len(lst)
+                if current_idx + list_length > idx:
+                    # 找到目标索引所在的列表
+                    index_in_list = idx - current_idx
+                    return key, index_in_list
+                current_idx += list_length
+            return None, None, None  # 索引超出范围
+
+        (obj, instance), index_in_list = find_element_by_index(self.combinations, idx)
+        image_pool = self.scenes[(obj, instance)]
+        im1_idx, im2_idx = self.combinations[(obj, instance)][index_in_list]
 
         # add a bit of randomness
         last = len(image_pool) - 1
