@@ -354,6 +354,37 @@ def train(args):
     #                "dec_blocks2.*.mlp.fc2",
     # ]
     # target_modules = get_lora_target_modules(model, name_include)
+    # lora_config = LoraConfig(
+    #     # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
+    #     # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
+    #     init_lora_weights="pissa",
+    #     r=8,  # Rank of LoRA updates (e.g., 8)
+    #     lora_alpha=16,  # Scaling factor (e.g., 16)
+    #     lora_dropout=0.1,  # Dropout for regularization
+    #     target_modules=[
+    #         "attn.qkv",  # Encoder and decoder self-attention
+    #         "attn.proj",
+    #         "cross_attn.projq",  # Decoder cross-attention
+    #         "cross_attn.projk",
+    #         "cross_attn.projv",
+    #         "cross_attn.proj",
+    #         "all-linear"
+    #     ],
+    #     # target_modules="all-linear",
+    #     # target_modules=target_modules,
+    #     # modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+    #     # modules_to_save=module_to_save,
+    # )
+
+    #-----only fc---#
+    name_include=[ "enc_blocks.*.mlp.fc1",
+                   "enc_blocks.*.mlp.fc2",
+                   "dec_blocks.*.mlp.fc1",
+                   "dec_blocks.*.mlp.fc2",
+                   "dec_blocks2.*.mlp.fc1",
+                   "dec_blocks2.*.mlp.fc2",
+    ]
+    target_modules = get_lora_target_modules(model, name_include)
     lora_config = LoraConfig(
         # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
         # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
@@ -361,19 +392,9 @@ def train(args):
         r=8,  # Rank of LoRA updates (e.g., 8)
         lora_alpha=16,  # Scaling factor (e.g., 16)
         lora_dropout=0.1,  # Dropout for regularization
-        target_modules=[
-            "attn.qkv",  # Encoder and decoder self-attention
-            "attn.proj",
-            "cross_attn.projq",  # Decoder cross-attention
-            "cross_attn.projk",
-            "cross_attn.projv",
-            "cross_attn.proj",
-            "all-linear"
-        ],
-        # target_modules="all-linear",
-        # target_modules=target_modules,
-        # modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
-        # modules_to_save=module_to_save,
+        target_modules=target_modules,
+        modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
+
     )
 
     model = get_peft_model(model, lora_config)
