@@ -58,7 +58,7 @@ class SyntheticColon(BaseStereoViewDataset):
         # #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
         self.combinations = [(i, i + k)
                              for i in range(1200)
-                             for k in [1, 2, 3]
+                             for k in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
                              if i + k < 1200]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
@@ -120,6 +120,7 @@ class SyntheticColon(BaseStereoViewDataset):
 
             impath = image_pool[im_idx]
             depthpath = impath.replace("FrameBuffer", "Depth")
+            print(impath)
             abs_path = os.path.abspath(os.path.join(impath, "../.."))
 
             # load camera params
@@ -192,19 +193,42 @@ if __name__ == "__main__":
 
     dataset = SyntheticColon(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
 
-    # for idx in np.random.permutation(len(dataset)):
+    for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
-    for idx in [457]:
+    # for idx in [457]:
         views = dataset[idx]
         assert len(views) == 2
         print(view_name(views[0]), view_name(views[1]))
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
         cam_size = max(auto_cam_size(poses), 1)
+
+        # from PIL import Image
+        # img_left = views[0]["img"].permute(1, 2, 0).numpy()
+        # img_right = views[1]["img"].permute(1, 2, 0).numpy()
+        #
+        # img_left = (img_left * 255).astype(np.float32)
+        # img_right = (img_right * 255).astype(np.float32)
+        # rgb_left = Image.fromarray(img_left)
+        # rgb_right = Image.fromarray(img_right)
+        #
+        # data_path = "/data/luxiaoxi/mast3r_imgs"
+        # os.makedirs(data_path, exist_ok=True)
+        # # plt.imshow(rgb_left)
+        # # plt.savefig(os.path.join(data_path, 'left'))
+        # #
+        # #
+        # # plt.imshow(rgb_right)
+        # # plt.savefig(os.path.join(data_path, 'right'))
+        #
+        # rgb_left.save(os.path.join(data_path, "left"))
+        # rgb_right.save(os.path.join(data_path, "right"))
+
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
             colors = rgb(views[view_idx]['img'])
+
             viz.add_pointcloud(pts3d, colors, valid_mask)
             viz.add_camera(pose_c2w=views[view_idx]['camera_pose'],
                            focal=views[view_idx]['camera_intrinsics'][0, 0],

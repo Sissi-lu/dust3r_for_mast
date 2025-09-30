@@ -24,13 +24,13 @@ from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
 
-class SyntheticColonIllumination(BaseStereoViewDataset):
+class Hamlyn(BaseStereoViewDataset):
     def __init__(self, mask_bg=True, *args, ROOT, **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
-        self.dataset_label = 'SyntheticColonIllumination'
+        self.dataset_label = 'Hamlyn'
 
         # load all scenes
         scenes = []
@@ -173,15 +173,6 @@ class SyntheticColonIllumination(BaseStereoViewDataset):
                 imgs_idxs.append(im_idx)
                 continue
 
-            # # directly concat the illumination into RGB image
-            # hsv_image = rgb_image.convert('HSV')
-            # h, s, v = hsv_image.split()
-            #
-            # rgb_image = np.array(rgb_image)
-            # v = np.array(v)
-            # v = v[..., np.newaxis]
-            # rgb_image = np.concatenate([rgb_image, v], axis=2)
-
             views.append(dict(
                 img=rgb_image,
                 depthmap=depthmap,
@@ -190,17 +181,16 @@ class SyntheticColonIllumination(BaseStereoViewDataset):
                 dataset=self.dataset_label,
                 label=osp.join(obj, instance),
                 instance=osp.split(impath)[1],
-                # illumination=v
             ))
         return views
 
-########################################### no use !!!!
+
 if __name__ == "__main__":
     from dust3r.datasets.base.base_stereo_view_dataset import view_name
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = SyntheticColonIllumination(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
+    dataset = Hamlyn(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
