@@ -360,20 +360,24 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         # Unfreeze decoder_embed
         for param in model.decoder_embed.parameters():
-            param.requires_grad = True
-        #
-        # # Unfreeze last 6 decoder blocks
-        # for block in model.dec_blocks[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
-        # for block in model.dec_blocks2[6:]:
-        #     for param in block.parameters():
-        #         param.requires_grad = True
+            param.requires_grad = False
+        # Unfreeze encoder_embed
+        for param in model.patch_embed.parameters():
+            param.requires_grad = False
 
-        for param in base_model.dec_blocks.parameters():
-            param.requires_grad = True
-        for param in base_model.dec_blocks2.parameters():
-            param.requires_grad = True
+        #
+        # Unfreeze last 6 decoder blocks
+        for block in model.dec_blocks[6:]:
+            for param in block.parameters():
+                param.requires_grad = True
+        for block in model.dec_blocks2[6:]:
+            for param in block.parameters():
+                param.requires_grad = True
+
+        # for param in base_model.dec_blocks.parameters():
+        #     param.requires_grad = False
+        # for param in base_model.dec_blocks2.parameters():
+        #     param.requires_grad = False
 
     # Apply to the model
     freeze_model(base_model)  # Freeze everything first
