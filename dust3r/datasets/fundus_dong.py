@@ -5,7 +5,7 @@ from collections import deque
 import os
 import cv2
 import numpy as np
-
+from scipy.spatial.transform import Rotation as R
 import sys
 sys.path.append("/data/luxiaoxi/code_proj/depth_estimation/MedicalMast3R/dust3r")
 
@@ -14,8 +14,6 @@ from dust3r.utils.image import imread_cv2
 
 # from utils.image import imread_cv2
 # from base.base_stereo_view_dataset import BaseStereoViewDataset
-
-
 
 def extract_K(data):
     fx = data['lens']*512/data['sensor_width']
@@ -82,6 +80,7 @@ class FundusDong(BaseStereoViewDataset):
         self.mask_bg = mask_bg
         self.dataset_label = 'fundus'
 
+
         self.pairs = []
         self.scenes = []
 
@@ -99,7 +98,18 @@ class FundusDong(BaseStereoViewDataset):
         #         self.pairs.append([osp.join(ROOT, dataset, frame_id, "imgL", img_id),
         #                            osp.join(ROOT, dataset, frame_id, "imgR", img_id)])
 
-        for img_path in sorted(running_list):
+        # new_running_list = [f for f in running_list if f.split('/')[0].split('_')[0] == "s4"]
+        # running_list = sorted(running_list, key=lambda x: (x.split('/')[-1].split('.')[0][:3], x.split('/')[-1].split('.')[0][3:]))
+
+        scene_folder = sorted(f for f in os.listdir(self.ROOT) if not "split" in f and not f.endswith("txt"))
+        new_running_list = []
+        for scene in scene_folder:
+            for i in range(1, 129):
+                img_path = os.path.join(self.ROOT, scene, "left", "imgs", "%03d26.png"%i)
+                new_running_list.append(img_path)
+
+        # for img_path in sorted(running_list):
+        for img_path in sorted(new_running_list):
             img_path = osp.join(self.ROOT, img_path)
             if img_path is not None:
                 self.pairs.append([img_path,
@@ -125,12 +135,24 @@ class FundusDong(BaseStereoViewDataset):
         # metric_depth = (clip_start + (clip_end - clip_start) * normalized_depth).astype("float32")
         return depth_map.astype("float32")
 
+    def quat_to_matrix(self, pos, quat):
+        # there is no difference between T0 and T1
+        x, y, z = pos
+        qw, qx, qy, qz = quat
+        rot = R.from_quat([qx, qy, qz, qw]).as_matrix()
+        T = np.eye(4)
+        T[:3, :3] = rot
+        T[:3, 3] = [x, y, z]
+        return T
+
     def _get_views(self, idx, resolution, rng):
         pairs = self.pairs[idx]
         views = []
         scene = pairs[0].split('/')[6]
         scene_number = int(pairs[0].split('/')[-1].split('.')[0][:3])
         picture_number = int(pairs[0].split('/')[-1].split('.')[0][3:])
+        print("Series: %s, Scene number: %d"%(scene, scene_number))
+
         intrinsic_number = (scene_number - 1)*50-1 + picture_number
         # parameter_path = str(pairs[0]).replace("imgL", "calib").replace(".png", ".json")
         parameter_path = osp.join(self.ROOT, scene, 'instrincs.json')
@@ -142,20 +164,35 @@ class FundusDong(BaseStereoViewDataset):
 
         intrinsic_left, w2cl, intrinsic_right, w2cr, ql, qr, posl, posr = extract_calib(calib_org)
 
+        camera_l = calib_org['camera_l']
+        camera_r = calib_org['camera_r']
+
+        t_l = [camera_l['location']['x'], camera_l['location']['y'], camera_l['location']['z']]
+        t_r = [camera_r['location']['x'], camera_r['location']['y'], camera_r['location']['z']]
+
+        q_l = camera_l['quaternion_rotation']
+        q_r = camera_r['quaternion_rotation']
+
+        T_l = self.quat_to_matrix(t_l, q_l).astype("float32")
+        T_r = self.quat_to_matrix(t_r, q_r).astype("float32")
+
+        # if t_l == t_r:
+        #     T_l[:3, 3] = w2cl[:3, 3]
+        #     T_r[:3, 3] = w2cr[:3, 3]
         # validation the effectiveness of the quaternion and w2c
         # t = posl - posr
         # wrong pos
 
-        w_posl = w2cl[:3, 3]
-        w_posr = w2cr[:3, 3]
-        t = w_posl - posr
+        # w_posl = w2cl[:3, 3]
+        # w_posr = w2cr[:3, 3]
+
 
         R_ql = quaternion2rotation_matrix(ql)
         R_qr = quaternion2rotation_matrix(qr)
 
-        Rot_l2r = np.eye(4, dtype="float32")
-        Rot_l2r[:3, :3] = R_ql
-        Rot_l2r[:3, 3] = t
+        # Rot_l2r = np.eye(4, dtype="float32")
+        # Rot_l2r[:3, :3] = R_ql
+        # Rot_l2r[:3, 3] = t
 
         new_calib = dict()
         new_calib["k_l"] = intrinsic_left.tolist()
@@ -163,7 +200,7 @@ class FundusDong(BaseStereoViewDataset):
         new_calib["w2cl"] = w2cl.tolist()
         new_calib["w2cr"] = w2cr.tolist()
 
-        new_calib["l2r"] = Rot_l2r.tolist()
+        # new_calib["l2r"] = Rot_l2r.tolist()
 
 
         for idx, one_side in enumerate(pairs):
@@ -175,26 +212,27 @@ class FundusDong(BaseStereoViewDataset):
 
             # -------use world matrix generated directly from blender----#
             if idx == 0:
-                # intrinsics = np.array(new_calib["k_l"], dtype="float32")
-                # # camera_pose = np.linalg.inv(np.array(calib["w2cl"], dtype="float32"))
-                # camera_pose = np.array(new_calib["w2cl"], dtype='float32')
+                intrinsics = np.array(new_calib["k_l"], dtype="float32")
+                # camera_pose = np.linalg.inv(np.array(calib["w2cl"], dtype="float32"))
+                camera_pose = np.array(new_calib["w2cl"], dtype='float32')
                 # camera_pose = np.linalg.inv(camera_pose)
-                # in fact, it's already c2w, with respect to world coordinate frame
-                intrinsics = extract_K(calib_org['camera_l']).astype(np.float32)
-                camera_pose = np.array(calib_org['camera_l']['word_matrix']).astype(np.float32)
                 # camera_pose = np.eye(4, dtype="float32")
+                # in fact, it's already c2w, with respect to world coordinate frame
+                # camera_pose = T_l
                 # camera_pose = np.linalg.inv(camera_pose)
-
             else:
-                # intrinsics = np.array(new_calib["k_r"], dtype="float32")
-                # # camera_pose = np.linalg.inv(np.array(calib["w2cr"], dtype="float32"))
-                # camera_pose = np.array(new_calib["w2cr"], dtype='float32')
+                intrinsics = np.array(new_calib["k_r"], dtype="float32")
+                # camera_pose = np.linalg.inv(np.array(calib["w2cr"], dtype="float32"))
+                camera_pose = np.array(new_calib["w2cr"], dtype='float32')
+                # camera_pose = np.linalg.inv(camera_pose)
+                # camera_pose = np.array(new_calib["l2r"], dtype="float32")
+                # camera_pose = np.linalg.inv(camera_pose)
+                # camera_pose = T_r
+                # camera_pose = np.linalg.inv(camera_pose)
 
                 # in fact, it's already c2w, with respect to world coordinate frame
-                intrinsics = extract_K(calib_org['camera_r']).astype(np.float32)
-                camera_pose = np.array(calib_org['camera_r']['word_matrix']).astype(np.float32)
-                # camera_pose = Rot_l2r
-                # camera_pose = np.linalg.inv(camera_pose)
+
+
 
             # ------use the quaternion and transform it into rotation matrix ----#
             # if idx == 0:
@@ -223,12 +261,6 @@ class FundusDong(BaseStereoViewDataset):
                 label=rgb_path,
                 instance=frame_num,
             ))
-
-        # print(views[0]["camera_pose"] == views[1]["camera_pose"])
-        tf_matrix = views[0]["camera_pose"] == views[1]["camera_pose"]
-        if sum(sum(tf_matrix[:3, :3])) != 9:
-            views[1]["camera_pose"][:3, :3] = views[0]["camera_pose"][:3, :3]
-            # print("changed")
         return views
 
 
@@ -243,9 +275,10 @@ if __name__ == "__main__":
 
     data_root = "/data/luxiaoxi/dataset/medical_depth/final_version_processed"
     train_running_list = []
-    with open(os.path.join(data_root, "split", "train.txt")) as file:
+    with open(os.path.join(data_root, "new_split", "train.txt")) as file:
         for line in file.readlines():
-            line = line.strip('\n').split(',')[0]
+            # line = line.strip('\n').split(',')[0]
+            line = line.strip('\n')
             train_running_list.append(line)
 
     dataset = FundusDong(split='train', ROOT=data_root, running_list=train_running_list, resolution=512, aug_crop=16)
@@ -253,7 +286,7 @@ if __name__ == "__main__":
     # for idx in np.random.permutation(len(dataset)):
     for idx in range(len(dataset)):
         views = dataset[idx]
-        # assert len(views) == 2
+        assert len(views) == 2
         # depth_left = views[0]["depthmap"]
         # depth_right = views[1]["depthmap"]
         # rgb_left = views[0]["img"].permute(1, 2, 0)
@@ -277,10 +310,9 @@ if __name__ == "__main__":
         # plt.title("Difference of RGB images")
         # plt.show()
 
-        # print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
-        # print("views[0] matrix: %s\n" % views[0]["camera_pose"])
-        # print("views[1] matrix: %s\n" % views[1]["camera_pose"])
-        # print(views[0]["camera_pose"] == views[1]["camera_pose"])
+
+
+        # print(view_name(views[0]), view_name(views[1]))
 
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
