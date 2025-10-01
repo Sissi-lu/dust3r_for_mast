@@ -151,7 +151,7 @@ class FundusDong(BaseStereoViewDataset):
         scene = pairs[0].split('/')[6]
         scene_number = int(pairs[0].split('/')[-1].split('.')[0][:3])
         picture_number = int(pairs[0].split('/')[-1].split('.')[0][3:])
-        print("Series: %s, Scene number: %d"%(scene, scene_number))
+        # print("Series: %s, Scene number: %d"%(scene, scene_number))
 
         intrinsic_number = (scene_number - 1)*50-1 + picture_number
         # parameter_path = str(pairs[0]).replace("imgL", "calib").replace(".png", ".json")
