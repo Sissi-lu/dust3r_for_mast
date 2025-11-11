@@ -250,8 +250,8 @@ if __name__ == "__main__":
 
     dataset = FundusDong(split='train', ROOT=data_root, running_list=train_running_list, resolution=512, aug_crop=16)
 
-    # for idx in np.random.permutation(len(dataset)):
-    for idx in range(len(dataset)):
+    for idx in np.random.permutation(len(dataset)):
+    # for idx in range(len(dataset)):
         views = dataset[idx]
         # assert len(views) == 2
         # depth_left = views[0]["depthmap"]
@@ -277,14 +277,15 @@ if __name__ == "__main__":
         # plt.title("Difference of RGB images")
         # plt.show()
 
-        # print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
+        print("views path: %s, %s\n" % (view_name(views[0]), view_name(views[1])))
         # print("views[0] matrix: %s\n" % views[0]["camera_pose"])
         # print("views[1] matrix: %s\n" % views[1]["camera_pose"])
         # print(views[0]["camera_pose"] == views[1]["camera_pose"])
 
         viz = SceneViz()
         poses = [views[view_idx]['camera_pose'] for view_idx in [0, 1]]
-        cam_size = max(auto_cam_size(poses), 1)
+        # cam_size = max(auto_cam_size(poses), 0.25)
+        cam_size = 2
         for view_idx in [0, 1]:
             pts3d = views[view_idx]['pts3d']
             valid_mask = views[view_idx]['valid_mask']
