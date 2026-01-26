@@ -10,6 +10,11 @@ import os
 import cv2
 import numpy as np
 
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from dust3r.datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from dust3r.utils.image import imread_cv2
 
@@ -92,7 +97,7 @@ if __name__ == "__main__":
     import torch
     import matplotlib.pyplot as plt
 
-    dataset = Abs(split='test', ROOT="/data/luxiaoxi/dataset/medical_depth/EndoAbs_preprocessed_nearest", resolution=224, aug_crop=16)
+    dataset = Abs(split='test', ROOT="/data/luxiaoxi/dataset/medical_depth/EndoAbs_preprocessed_nearest", running_list= , resolution=224, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     for idx in range(len(dataset)):

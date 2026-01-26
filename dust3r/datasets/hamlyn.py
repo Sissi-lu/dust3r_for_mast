@@ -14,8 +14,8 @@ from collections import deque
 from scipy.spatial.transform import Rotation as R
 import cv2
 import numpy as np
-
-
+import random
+# 前后帧
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -33,18 +33,18 @@ class Hamlyn(BaseStereoViewDataset):
         self.dataset_label = 'Hamlyn'
 
         # load all scenes
-        scenes = []
-        if self.split == "train":
-            with open(osp.join(self.ROOT, "misc", f'train_file.txt'), 'r') as f:
-                for line in f.readlines():
-                    scenes.append(line.strip())
-        elif self.split == "test":
-            with open(osp.join(self.ROOT, "misc", f'test_file.txt'), 'r') as f:
-                for line in f.readlines():
-                    scenes.append(line.strip())
+        # scenes = ["rectified%02d"% i for i in range(1, 28)]
+        # if self.split == "train":
+        #     with open(osp.join(self.ROOT, "misc", f'train_file.txt'), 'r') as f:
+        #         for line in f.readlines():
+        #             scenes.append(line.strip())
+        # elif self.split == "test":
+        #     with open(osp.join(self.ROOT, "misc", f'test_file.txt'), 'r') as f:
+        #         for line in f.readlines():
+        #             scenes.append(line.strip())
+        scenes = sorted(f for f in os.listdir(self.ROOT) if not f.endswith("zip") and f != "calibration")
 
-
-        self.scenes = {(scene, scene): sorted(glob.glob(os.path.join(self.ROOT, scene, "FrameBuffer_*.png"))) for scene in scenes}
+        self.scenes = {(scene, "image01"): sorted(glob.glob(os.path.join(self.ROOT, scene, "image01", "*.jpg"))) for scene in scenes}
 
         self.scene_list = list(self.scenes.keys())
 
@@ -56,18 +56,20 @@ class Hamlyn(BaseStereoViewDataset):
         # self.combinations = [(i, j)
         #                      for i, j in itertools.combinations(range(10), 2)
         # #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
-        self.combinations = [(i, i + k)
-                             for i in range(1200)
-                             for k in [1, 2, 3]
-                             if i + k < 1200]
+
+        # self.combinations = [(i, i + k)
+        #                      for i in range(1000)
+        #                      for k in [1, 2, 3]]
 
         self.invalidate = {scene: {} for scene in self.scene_list}
 
         self.min_depth = 0.001
-        self.max_depth = 20
+        self.max_depth = 300
 
     def __len__(self):
-        return len(self.scene_list) * len(self.combinations)
+        # return len(self.scene_list) * len(self.combinations)
+
+        return sum(len(lst) for lst in self.scenes.values())
 
     def _get_metadatapath(self, obj, instance, view_idx):
         return osp.join(self.ROOT, instance, 'image_02/data/frame_data', f'frame_data%06d.json'%view_idx)
@@ -82,7 +84,7 @@ class Hamlyn(BaseStereoViewDataset):
     #     return osp.join(self.ROOT, obj, instance, 'masks', f'frame{view_idx:06n}.png')
 
     def _read_depthmap(self, depthpath):
-        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256*20#cm
+        depthmap = cv2.imread(depthpath, cv2.IMREAD_UNCHANGED)/255/256*300 # mm
         depthmap = depthmap.astype(np.float32)
         depthmap[depthmap < 0] = 0
         depthmap[depthmap > self.max_depth] = self.max_depth
@@ -90,9 +92,12 @@ class Hamlyn(BaseStereoViewDataset):
 
     def _get_views(self, idx, resolution, rng):
         # choose a scene
-        obj, instance = self.scene_list[idx // len(self.combinations)]
+        obj, instance = self.scene_list[idx // sum(len(lst) for lst in self.scenes.values())]
         image_pool = self.scenes[obj, instance]
-        im1_idx, im2_idx = self.combinations[idx % len(self.combinations)]
+        # im1_idx, im2_idx = self.combinations[idx % len(self.combinations)]
+        im1_idx = idx
+        random_number = random.randint(1, 4)
+        im2_idx = idx + random_number
 
         # add a bit of randomness
         last = len(image_pool) - 1
@@ -119,12 +124,12 @@ class Hamlyn(BaseStereoViewDataset):
                         break
 
             impath = image_pool[im_idx]
-            depthpath = impath.replace("FrameBuffer", "Depth")
+            depthpath = impath.replace("image01", "depth01")
             abs_path = os.path.abspath(os.path.join(impath, "../.."))
 
             # load camera params
             intrinsics = np.loadtxt(
-                os.path.join(abs_path, "cam.txt"),
+                os.path.join(self.ROOT, "calibration", obj.split("ed")[1], "intrinsics.txt"),
                 delimiter=" ",
                 dtype=np.float32,
                 skiprows=0,
@@ -190,11 +195,11 @@ if __name__ == "__main__":
     from dust3r.viz import SceneViz, auto_cam_size
     from dust3r.utils.image import rgb
 
-    dataset = Hamlyn(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/SyntheticColon", resolution=512, aug_crop=16)
+    dataset = Hamlyn(split='test', ROOT="/data_new/luxiaoxi/dataset/medical_slam/hamlyn_data", resolution=512, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     # for idx in range(len(dataset)):
-    for idx in [457]:
+    for idx in [0]:
         views = dataset[idx]
         assert len(views) == 2
         print(view_name(views[0]), view_name(views[1]))
