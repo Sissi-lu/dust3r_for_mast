@@ -97,7 +97,7 @@ if __name__ == "__main__":
     import torch
     import matplotlib.pyplot as plt
 
-    dataset = Abs(split='test', ROOT="/data/luxiaoxi/dataset/medical_depth/EndoAbs_preprocessed_nearest", running_list= , resolution=224, aug_crop=16)
+    dataset = Abs(split='test', ROOT="/data/luxiaoxi/dataset/medical_depth/EndoAbs_preprocessed_nearest", running_list="sound", resolution=224, aug_crop=16)
 
     # for idx in np.random.permutation(len(dataset)):
     for idx in range(len(dataset)):
