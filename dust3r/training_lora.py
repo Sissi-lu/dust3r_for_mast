@@ -389,8 +389,8 @@ def train(args):
         # r=args.lora_rank,  # Rank of LoRA updates (e.g., 8)
         # lora_alpha=args.lora_alpha,  # Scaling factor (e.g., 16)
         init_lora_weights="pissa",
-        r=8,  # Rank of LoRA updates (e.g., 8)
-        lora_alpha=16,  # Scaling factor (e.g., 16)
+        r=4,  # Rank of LoRA updates (e.g., 8)
+        lora_alpha=8,  # Scaling factor (e.g., 16)
         lora_dropout=0.1,  # Dropout for regularization
         target_modules=target_modules,
         modules_to_save=["patch_embed.proj", "decoder_embed"],  # Train patch embedding and decoder embedding directly
