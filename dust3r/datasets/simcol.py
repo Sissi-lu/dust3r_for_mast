@@ -52,7 +52,7 @@ class SyntheticColon(BaseStereoViewDataset):
         # we prepare all combinations such that i-j = +/- [5, 10, .., 90] degrees
         self.combinations = [(i, j)
                              for i, j in itertools.combinations(range(60), 2)
-                             if 0 < abs(i - j) <= 10 and abs(i - j) % 5 == 0]
+                             if 0 < abs(i - j) <= 10 and abs(i - j) % 7 == 0]
         # self.combinations = [(i, j)
         #                      for i, j in itertools.combinations(range(10), 2)
         # #                      if 0 < abs(i - j) <= 10 and abs(i - j) % 2 == 0]
